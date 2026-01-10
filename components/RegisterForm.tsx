@@ -199,9 +199,9 @@ export default function RegisterForm() {
       {/* Terms */}
       <p className="text-center text-white/40 text-sm">
         Al registrarte, aceptas nuestros{' '}
-        <a href="#" className="text-white/60 hover:text-white transition-colors">
+        <Link href="/terms" className="text-white/60 hover:text-white transition-colors underline">
           términos y condiciones
-        </a>
+        </Link>
       </p>
 
       {/* Login link */}

@@ -50,7 +50,7 @@ async function Navbar() {
             {isLoggedIn ? (
               <Link 
                 href="/dashboard" 
-                className="gradient-primary text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:shadow-lg hover:shadow-emerald-500/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                className="gradient-primary text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:shadow-lg hover:shadow-emerald-500/30 transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
               >
                 <LayoutDashboard className="w-4 h-4" />
                 Dashboard
@@ -59,13 +59,13 @@ async function Navbar() {
               <>
                 <Link 
                   href="/login" 
-                  className="text-white/80 hover:text-white transition-colors text-sm font-medium px-4 py-2"
+                  className="text-white/80 hover:text-white transition-colors text-sm font-medium px-4 py-2 flex items-center justify-center whitespace-nowrap"
                 >
                   Iniciar sesión
                 </Link>
                 <Link 
                   href="/register" 
-                  className="gradient-primary text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:shadow-lg hover:shadow-emerald-500/30 transition-all hover:-translate-y-0.5"
+                  className="gradient-primary text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:shadow-lg hover:shadow-emerald-500/30 transition-all hover:-translate-y-0.5 flex items-center justify-center whitespace-nowrap"
                 >
                   Comenzar gratis
                 </Link>
@@ -510,8 +510,8 @@ function Footer() {
           </div>
           
           <div className="flex items-center gap-6 text-sm text-white/40">
-            <a href="#" className="hover:text-white transition-colors">Privacidad</a>
-            <a href="#" className="hover:text-white transition-colors">Términos</a>
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacidad</Link>
+            <Link href="/terms" className="hover:text-white transition-colors">Términos</Link>
           </div>
         </div>
       </div>
