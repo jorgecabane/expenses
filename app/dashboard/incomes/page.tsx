@@ -1,0 +1,443 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { 
+  TrendingUp, 
+  Plus, 
+  Search, 
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Wallet,
+  User,
+  Users,
+  Filter,
+  ArrowUpRight
+} from 'lucide-react'
+
+interface Income {
+  id: string
+  amount: number
+  description: string | null
+  date: string
+  isPersonal: boolean
+  creator: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+interface MonthlyStats {
+  total: number
+  personal: number
+  group: number
+  count: number
+  avgPerIncome: number
+}
+
+function formatCurrency(amount: number, currency: string = 'CLP') {
+  return new Intl.NumberFormat('es-CL', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 0,
+  }).format(amount)
+}
+
+function formatDate(dateString: string) {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('es-CL', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
+export default function IncomesPage() {
+  const [incomes, setIncomes] = useState<Income[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterType, setFilterType] = useState<'all' | 'personal' | 'group'>('all')
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [groupId, setGroupId] = useState<string | null>(null)
+  const [currency, setCurrency] = useState('CLP')
+  const [stats, setStats] = useState<MonthlyStats>({
+    total: 0,
+    personal: 0,
+    group: 0,
+    count: 0,
+    avgPerIncome: 0,
+  })
+
+  // Obtener grupo activo
+  useEffect(() => {
+    async function fetchGroup() {
+      try {
+        const res = await fetch('/api/groups')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.groups && data.groups.length > 0) {
+            setGroupId(data.groups[0].id)
+            setCurrency(data.groups[0].currency || 'CLP')
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching group:', error)
+      }
+    }
+    fetchGroup()
+  }, [])
+
+  // Cargar ingresos cuando cambia el grupo o el mes
+  useEffect(() => {
+    if (!groupId) return
+
+    async function fetchIncomes() {
+      setLoading(true)
+      try {
+        const month = currentMonth.getMonth() + 1
+        const year = currentMonth.getFullYear()
+        const res = await fetch(`/api/incomes?groupId=${groupId}&month=${month}&year=${year}`)
+        
+        if (res.ok) {
+          const data = await res.json()
+          setIncomes(data.incomes || [])
+          
+          // Calcular estadísticas
+          const incomesData = data.incomes || []
+          const total = incomesData.reduce((sum: number, inc: Income) => sum + Number(inc.amount), 0)
+          const personal = incomesData
+            .filter((inc: Income) => inc.isPersonal)
+            .reduce((sum: number, inc: Income) => sum + Number(inc.amount), 0)
+          const group = incomesData
+            .filter((inc: Income) => !inc.isPersonal)
+            .reduce((sum: number, inc: Income) => sum + Number(inc.amount), 0)
+          
+          setStats({
+            total,
+            personal,
+            group,
+            count: incomesData.length,
+            avgPerIncome: incomesData.length > 0 ? total / incomesData.length : 0,
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching incomes:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchIncomes()
+  }, [groupId, currentMonth])
+
+  // Filtrar ingresos
+  const filteredIncomes = incomes.filter(income => {
+    const matchesSearch = !searchTerm || 
+      income.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      income.creator.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      income.creator.email.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesType = filterType === 'all' || 
+      (filterType === 'personal' && income.isPersonal) ||
+      (filterType === 'group' && !income.isPersonal)
+    
+    return matchesSearch && matchesType
+  })
+
+  // Agrupar ingresos por día
+  const groupedIncomes = filteredIncomes.reduce((groups, income) => {
+    const date = new Date(income.date).toDateString()
+    if (!groups[date]) {
+      groups[date] = []
+    }
+    groups[date].push(income)
+    return groups
+  }, {} as Record<string, Income[]>)
+
+  const sortedDates = Object.keys(groupedIncomes).sort(
+    (a, b) => new Date(b).getTime() - new Date(a).getTime()
+  )
+
+  // Navegación de meses
+  const goToPreviousMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
+  }
+
+  const goToNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
+  }
+
+  const monthName = currentMonth.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Ingresos</h1>
+          <p className="text-slate-400 text-sm mt-1">Historial y análisis de tus ingresos</p>
+        </div>
+        <Link
+          href="/dashboard?income=true"
+          className="inline-flex items-center justify-center gap-2 gradient-primary text-white font-medium py-2.5 px-5 rounded-xl hover:shadow-lg hover:shadow-emerald-500/30 transition-all"
+        >
+          <Plus className="w-5 h-5" />
+          Nuevo ingreso
+        </Link>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-slate-400 text-sm font-medium">Total mes</span>
+            <div className="p-2 bg-emerald-500/20 rounded-lg">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+            </div>
+          </div>
+          <p className="text-xl sm:text-2xl font-bold text-emerald-400">
+            {formatCurrency(stats.total, currency)}
+          </p>
+          <p className="text-xs text-slate-500 mt-1">{stats.count} ingresos</p>
+        </div>
+
+        <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-slate-400 text-sm font-medium">Personales</span>
+            <div className="p-2 bg-blue-500/20 rounded-lg">
+              <User className="w-4 h-4 text-blue-400" />
+            </div>
+          </div>
+          <p className="text-xl sm:text-2xl font-bold text-white">
+            {formatCurrency(stats.personal, currency)}
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            {stats.total > 0 ? ((stats.personal / stats.total) * 100).toFixed(0) : 0}% del total
+          </p>
+        </div>
+
+        <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-slate-400 text-sm font-medium">Grupales</span>
+            <div className="p-2 bg-purple-500/20 rounded-lg">
+              <Users className="w-4 h-4 text-purple-400" />
+            </div>
+          </div>
+          <p className="text-xl sm:text-2xl font-bold text-white">
+            {formatCurrency(stats.group, currency)}
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            {stats.total > 0 ? ((stats.group / stats.total) * 100).toFixed(0) : 0}% del total
+          </p>
+        </div>
+
+        <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-slate-400 text-sm font-medium">Promedio</span>
+            <div className="p-2 bg-amber-500/20 rounded-lg">
+              <Wallet className="w-4 h-4 text-amber-400" />
+            </div>
+          </div>
+          <p className="text-xl sm:text-2xl font-bold text-white">
+            {formatCurrency(stats.avgPerIncome, currency)}
+          </p>
+          <p className="text-xs text-slate-500 mt-1">por ingreso</p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        {/* Month selector */}
+        <div className="flex items-center gap-2 bg-slate-800/50 rounded-xl border border-slate-700 p-1">
+          <button 
+            onClick={goToPreviousMonth}
+            className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5 text-slate-400" />
+          </button>
+          <div className="flex items-center gap-2 px-3 min-w-[160px] justify-center">
+            <Calendar className="w-4 h-4 text-slate-400" />
+            <span className="text-white font-medium capitalize">{monthName}</span>
+          </div>
+          <button 
+            onClick={goToNextMonth}
+            className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+          >
+            <ChevronRight className="w-5 h-5 text-slate-400" />
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Buscar ingresos..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+          />
+        </div>
+
+        {/* Type filter */}
+        <div className="flex items-center gap-1 bg-slate-800/50 rounded-xl border border-slate-700 p-1">
+          <button
+            onClick={() => setFilterType('all')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filterType === 'all' 
+                ? 'bg-emerald-500/20 text-emerald-400' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
+          >
+            Todos
+          </button>
+          <button
+            onClick={() => setFilterType('personal')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filterType === 'personal' 
+                ? 'bg-blue-500/20 text-blue-400' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
+          >
+            Personales
+          </button>
+          <button
+            onClick={() => setFilterType('group')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filterType === 'group' 
+                ? 'bg-purple-500/20 text-purple-400' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
+          >
+            Grupales
+          </button>
+        </div>
+      </div>
+
+      {/* Income list */}
+      <div className="space-y-6">
+        {loading ? (
+          <div className="bg-slate-800/50 rounded-2xl p-8 border border-slate-700 text-center">
+            <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full mx-auto" />
+            <p className="text-slate-400 mt-4">Cargando ingresos...</p>
+          </div>
+        ) : sortedDates.length === 0 ? (
+          <div className="bg-slate-800/50 rounded-2xl p-8 border border-slate-700 text-center">
+            <div className="w-16 h-16 rounded-full bg-slate-700/50 flex items-center justify-center mx-auto mb-4">
+              <TrendingUp className="w-8 h-8 text-slate-500" />
+            </div>
+            <p className="text-slate-400 mb-2">No hay ingresos registrados</p>
+            <p className="text-slate-500 text-sm">
+              {searchTerm || filterType !== 'all' 
+                ? 'Prueba con otros filtros' 
+                : 'Agrega tu primer ingreso del mes'}
+            </p>
+          </div>
+        ) : (
+          sortedDates.map(date => {
+            const dayIncomes = groupedIncomes[date]
+            const dayTotal = dayIncomes.reduce((sum, inc) => sum + Number(inc.amount), 0)
+            
+            return (
+              <div key={date} className="space-y-3">
+                {/* Day header */}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-slate-400">
+                    {new Date(date).toLocaleDateString('es-CL', { 
+                      weekday: 'long', 
+                      day: 'numeric', 
+                      month: 'long' 
+                    })}
+                  </h3>
+                  <span className="text-sm font-bold text-emerald-400">
+                    +{formatCurrency(dayTotal, currency)}
+                  </span>
+                </div>
+
+                {/* Incomes */}
+                <div className="bg-slate-800/50 rounded-2xl border border-slate-700 divide-y divide-slate-700/50 overflow-hidden">
+                  {dayIncomes.map(income => (
+                    <div 
+                      key={income.id}
+                      className="p-4 hover:bg-slate-700/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          income.isPersonal ? 'bg-blue-500/20' : 'bg-purple-500/20'
+                        }`}>
+                          {income.isPersonal ? (
+                            <User className="w-5 h-5 text-blue-400" />
+                          ) : (
+                            <Users className="w-5 h-5 text-purple-400" />
+                          )}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-medium truncate">
+                            {income.description || 'Ingreso'}
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            {income.isPersonal ? 'Personal' : 'Grupal'} • {income.creator.name || income.creator.email.split('@')[0]}
+                          </p>
+                        </div>
+                        
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-emerald-400">
+                            +{formatCurrency(Number(income.amount), currency)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Monthly summary */}
+      {!loading && stats.count > 0 && (
+        <div className="bg-gradient-to-br from-emerald-500/10 to-blue-500/10 rounded-2xl p-6 border border-emerald-500/20">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-emerald-500/20 rounded-lg">
+              <ArrowUpRight className="w-5 h-5 text-emerald-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-white">Resumen del mes</h3>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold text-emerald-400">{stats.count}</p>
+              <p className="text-sm text-slate-400">ingresos registrados</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">{formatCurrency(stats.total, currency)}</p>
+              <p className="text-sm text-slate-400">total recibido</p>
+            </div>
+          </div>
+          
+          {/* Progress bar personal vs grupal */}
+          <div className="mt-4">
+            <div className="flex justify-between text-xs text-slate-400 mb-2">
+              <span>Personal ({((stats.personal / stats.total) * 100).toFixed(0)}%)</span>
+              <span>Grupal ({((stats.group / stats.total) * 100).toFixed(0)}%)</span>
+            </div>
+            <div className="h-3 bg-slate-700 rounded-full overflow-hidden flex">
+              <div 
+                className="h-full bg-blue-500 transition-all"
+                style={{ width: `${(stats.personal / stats.total) * 100}%` }}
+              />
+              <div 
+                className="h-full bg-purple-500 transition-all"
+                style={{ width: `${(stats.group / stats.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

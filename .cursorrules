@@ -1,0 +1,21 @@
+# Reglas para Agente de Desarrollo
+
+## Responsabilidades del Agente de Desarrollo
+- Implementar nuevas features según el plan
+- Seguir las convenciones de código establecidas
+- Escribir código limpio y bien estructurado
+- Actualizar documentación cuando sea necesario
+- Crear tests cuando sea apropiado
+
+## Flujo de Trabajo
+1. Leer el plan completo antes de empezar
+2. Implementar una feature a la vez
+3. Verificar que el código compile sin errores
+4. Si encuentras errores que no puedes resolver, documentarlos en `.cursor/debug-queue.md`
+5. Marcar tareas como completadas en el plan
+
+## Convenciones
+- Usar TypeScript estrictamente
+- Seguir los patrones establecidos en el código existente
+- Comentar código complejo
+- Usar nombres descriptivos en español para variables de negocio

@@ -1,0 +1,210 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// User profile (extends Supabase auth.users)
+model User {
+  id        String   @id
+  email     String   @unique
+  name      String?
+  avatarUrl String?  @map("avatar_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  createdGroups     FamilyGroup[]      @relation("GroupOwner")
+  groupMemberships  GroupMember[]
+  createdCategories Category[]         @relation("CategoryOwner")
+  createdExpenses   Expense[]
+  createdIncomes    Income[]
+  personalSavings   SavingsGoal[]     @relation("PersonalSavings")
+  sentInvitations   GroupInvitation[] @relation("Inviter")
+  expenseShares     ExpenseShare[]
+
+  @@map("users")
+}
+
+// Family Group (Grupo Familiar/Pareja)
+model FamilyGroup {
+  id        String   @id @default(cuid())
+  name      String
+  currency  String   @default("USD")
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  owner       User              @relation("GroupOwner", fields: [createdBy], references: [id], onDelete: Cascade)
+  members     GroupMember[]
+  categories  Category[]
+  expenses    Expense[]
+  budgets     MonthlyBudget[]
+  incomes     Income[]
+  savings     SavingsGoal[]
+  invitations GroupInvitation[]
+
+  @@map("family_groups")
+}
+
+// Group Member
+model GroupMember {
+  id        String   @id @default(cuid())
+  groupId   String   @map("group_id")
+  userId    String   @map("user_id")
+  role      String   @default("member") // owner | member
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  group FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("group_members")
+}
+
+// Group Invitation
+model GroupInvitation {
+  id        String    @id @default(cuid())
+  groupId   String    @map("group_id")
+  email     String
+  token     String    @unique
+  status    String    @default("pending") // pending | accepted | rejected | expired
+  invitedBy String    @map("invited_by")
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  group    FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  inviter  User        @relation("Inviter", fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, email])
+  @@map("group_invitations")
+}
+
+// Category (Bolsillo)
+model Category {
+  id           String   @id @default(cuid())
+  groupId      String   @map("group_id")
+  name         String
+  icon         String?
+  color        String?
+  monthlyLimit Decimal? @map("monthly_limit") @db.Decimal(10, 2)
+  isPersonal   Boolean  @default(false) @map("is_personal")
+  ownerId      String?  @map("owner_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  group     FamilyGroup    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  owner     User?          @relation("CategoryOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  expenses  Expense[]
+  budgets   MonthlyBudget[]
+
+  @@map("categories")
+}
+
+// Monthly Budget (Bolsillo mensual)
+model MonthlyBudget {
+  id             String   @id @default(cuid())
+  groupId        String   @map("group_id")
+  categoryId     String   @map("category_id")
+  month          Int
+  year           Int
+  userId         String?  @map("user_id") // null para compartidos, user_id para personales
+  allocatedAmount Decimal  @map("allocated_amount") @db.Decimal(10, 2)
+  spentAmount    Decimal  @default(0) @map("spent_amount") @db.Decimal(10, 2)
+  remainingAmount Decimal @default(0) @map("remaining_amount") @db.Decimal(10, 2)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  group    FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  category Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, categoryId, month, year, userId])
+  @@map("monthly_budgets")
+}
+
+// Expense
+model Expense {
+  id             String    @id @default(cuid())
+  groupId        String    @map("group_id")
+  categoryId     String    @map("category_id")
+  amount         Decimal   @db.Decimal(10, 2)
+  description    String?
+  date           DateTime  @default(now())
+  createdBy      String    @map("created_by")
+  isRecurring    Boolean   @default(false) @map("is_recurring")
+  recurringConfig Json?    @map("recurring_config")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  group        FamilyGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  category     Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  creator      User         @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  expenseShares ExpenseShare[]
+
+  @@map("expenses")
+}
+
+// Expense Share (para división de gastos compartidos)
+model ExpenseShare {
+  id         String   @id @default(cuid())
+  expenseId  String   @map("expense_id")
+  userId     String   @map("user_id")
+  amount     Decimal  @db.Decimal(10, 2)
+  percentage Decimal? @db.Decimal(5, 2)
+  isPaid     Boolean  @default(false) @map("is_paid")
+
+  // Relations
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("expense_shares")
+}
+
+// Income (Presupuesto/Ingresos)
+model Income {
+  id        String   @id @default(cuid())
+  groupId   String   @map("group_id")
+  userId    String?  @map("user_id") // null para presupuesto del grupo, user_id para ingresos personales
+  amount    Decimal  @db.Decimal(10, 2)
+  description String?
+  date      DateTime @default(now())
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  group   FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator User        @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@map("incomes")
+}
+
+// Savings Goal (Meta de Ahorro Mensual)
+model SavingsGoal {
+  id           String   @id @default(cuid())
+  groupId      String   @map("group_id")
+  userId       String?  @map("user_id") // null para meta del grupo, user_id para meta personal
+  targetAmount Decimal  @map("target_amount") @db.Decimal(10, 2)
+  currentSaved Decimal  @default(0) @map("current_saved") @db.Decimal(10, 2)
+  month        Int
+  year         Int
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  group FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User?       @relation("PersonalSavings", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId, month, year])
+  @@map("savings_goals")
+}
