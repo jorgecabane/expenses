@@ -18,7 +18,9 @@ export async function DELETE(
     // Buscar el gasto
     const expense = await prisma.expense.findUnique({
       where: { id: expenseId },
-      include: {
+      select: {
+        id: true,
+        createdBy: true,
         category: true,
       },
     })
@@ -28,7 +30,7 @@ export async function DELETE(
     }
 
     // Verificar que el usuario sea el creador del gasto
-    if (expense.creatorId !== user.id) {
+    if (expense.createdBy !== user.id) {
       return NextResponse.json(
         { error: 'No tienes permisos para eliminar este gasto' },
         { status: 403 }
@@ -119,7 +121,7 @@ export async function PATCH(
 
     const { expenseId } = await params
     const body = await request.json()
-    const { amount, description, categoryId, date } = body
+    const { amount, description, categoryId, date, recurringConfig, isRecurring } = body
 
     // Buscar el gasto
     const expense = await prisma.expense.findUnique({
@@ -131,7 +133,7 @@ export async function PATCH(
     }
 
     // Verificar que el usuario sea el creador
-    if (expense.creatorId !== user.id) {
+    if (expense.createdBy !== user.id) {
       return NextResponse.json(
         { error: 'No tienes permisos para editar este gasto' },
         { status: 403 }
@@ -146,6 +148,8 @@ export async function PATCH(
         ...(description !== undefined && { description }),
         ...(categoryId !== undefined && { categoryId }),
         ...(date !== undefined && { date: new Date(date) }),
+        ...(isRecurring !== undefined && { isRecurring }),
+        ...(recurringConfig !== undefined && { recurringConfig: recurringConfig as any }),
       },
       include: {
         category: true,

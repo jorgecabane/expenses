@@ -173,14 +173,16 @@ model ExpenseShare {
 
 // Income (Presupuesto/Ingresos)
 model Income {
-  id        String   @id @default(cuid())
-  groupId   String   @map("group_id")
-  userId    String?  @map("user_id") // null para presupuesto del grupo, user_id para ingresos personales
-  amount    Decimal  @db.Decimal(10, 2)
-  description String?
-  date      DateTime @default(now())
-  createdBy String   @map("created_by")
-  createdAt DateTime @default(now()) @map("created_at")
+  id             String    @id @default(cuid())
+  groupId        String    @map("group_id")
+  userId         String?   @map("user_id") // null para presupuesto del grupo, user_id para ingresos personales
+  amount         Decimal   @db.Decimal(10, 2)
+  description    String?
+  date           DateTime  @default(now())
+  createdBy      String    @map("created_by")
+  isRecurring    Boolean   @default(false) @map("is_recurring")
+  recurringConfig Json?    @map("recurring_config")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   // Relations
   group   FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)

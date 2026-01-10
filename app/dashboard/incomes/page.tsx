@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { 
   TrendingUp, 
@@ -13,8 +13,15 @@ import {
   User,
   Users,
   Filter,
-  ArrowUpRight
+  ArrowUpRight,
+  Repeat,
+  Pause,
+  Play,
+  Edit3,
+  Trash2
 } from 'lucide-react'
+import { toast } from 'sonner'
+import { formatRecurrenceConfig, type RecurringConfig } from '@/lib/recurrence'
 
 interface Income {
   id: string
@@ -27,6 +34,10 @@ interface Income {
     name: string | null
     email: string
   }
+}
+
+interface RecurringTemplate extends Income {
+  recurringConfig: RecurringConfig
 }
 
 interface MonthlyStats {
@@ -56,6 +67,7 @@ function formatDate(dateString: string) {
 
 export default function IncomesPage() {
   const [incomes, setIncomes] = useState<Income[]>([])
+  const [recurringTemplates, setRecurringTemplates] = useState<RecurringTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'personal' | 'group'>('all')
@@ -69,6 +81,9 @@ export default function IncomesPage() {
     count: 0,
     avgPerIncome: 0,
   })
+  const [pausingTemplate, setPausingTemplate] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // Obtener grupo activo
   useEffect(() => {
@@ -89,48 +104,116 @@ export default function IncomesPage() {
     fetchGroup()
   }, [])
 
+  // Función para cargar ingresos (reutilizable)
+  const fetchIncomes = useCallback(async () => {
+    if (!groupId) return
+    
+    setLoading(true)
+    try {
+      const month = currentMonth.getMonth() + 1
+      const year = currentMonth.getFullYear()
+      const res = await fetch(`/api/incomes?groupId=${groupId}&month=${month}&year=${year}&includeRecurring=true`)
+      
+      if (res.ok) {
+        const data = await res.json()
+        setIncomes(data.incomes || [])
+        setRecurringTemplates(data.recurringTemplates || [])
+        
+        // Calcular estadísticas
+        const incomesData = data.incomes || []
+        const total = incomesData.reduce((sum: number, inc: Income) => sum + Number(inc.amount), 0)
+        const personal = incomesData
+          .filter((inc: Income) => inc.isPersonal)
+          .reduce((sum: number, inc: Income) => sum + Number(inc.amount), 0)
+        const group = incomesData
+          .filter((inc: Income) => !inc.isPersonal)
+          .reduce((sum: number, inc: Income) => sum + Number(inc.amount), 0)
+        
+        setStats({
+          total,
+          personal,
+          group,
+          count: incomesData.length,
+          avgPerIncome: incomesData.length > 0 ? total / incomesData.length : 0,
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching incomes:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [groupId, currentMonth])
+
+  // Pausar/Reanudar template recurrente
+  const handleTogglePause = async (template: RecurringTemplate) => {
+    setPausingTemplate(template.id)
+    try {
+      const config = template.recurringConfig
+      const updatedConfig: RecurringConfig = {
+        ...config,
+        isPaused: !config.isPaused,
+      }
+
+      const res = await fetch(`/api/incomes/${template.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recurringConfig: updatedConfig,
+        }),
+      })
+
+      if (res.ok) {
+        fetchIncomes()
+        toast.success(updatedConfig.isPaused ? 'Recurrencia pausada' : 'Recurrencia reanudada')
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Error al actualizar recurrencia')
+      }
+    } catch (error) {
+      console.error('Error toggling pause:', error)
+      toast.error('Error al actualizar recurrencia')
+    } finally {
+      setPausingTemplate(null)
+    }
+  }
+
+  // Eliminar template recurrente
+  const handleDeleteTemplate = async (templateId: string) => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/incomes/${templateId}`, {
+        method: 'DELETE',
+      })
+      
+      if (res.ok) {
+        fetchIncomes()
+        setDeleteConfirm(null)
+        toast.success('Recurrencia eliminada')
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Error al eliminar recurrencia')
+      }
+    } catch (error) {
+      console.error('Error deleting template:', error)
+      toast.error('Error al eliminar recurrencia')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   // Cargar ingresos cuando cambia el grupo o el mes
   useEffect(() => {
-    if (!groupId) return
-
-    async function fetchIncomes() {
-      setLoading(true)
-      try {
-        const month = currentMonth.getMonth() + 1
-        const year = currentMonth.getFullYear()
-        const res = await fetch(`/api/incomes?groupId=${groupId}&month=${month}&year=${year}`)
-        
-        if (res.ok) {
-          const data = await res.json()
-          setIncomes(data.incomes || [])
-          
-          // Calcular estadísticas
-          const incomesData = data.incomes || []
-          const total = incomesData.reduce((sum: number, inc: Income) => sum + Number(inc.amount), 0)
-          const personal = incomesData
-            .filter((inc: Income) => inc.isPersonal)
-            .reduce((sum: number, inc: Income) => sum + Number(inc.amount), 0)
-          const group = incomesData
-            .filter((inc: Income) => !inc.isPersonal)
-            .reduce((sum: number, inc: Income) => sum + Number(inc.amount), 0)
-          
-          setStats({
-            total,
-            personal,
-            group,
-            count: incomesData.length,
-            avgPerIncome: incomesData.length > 0 ? total / incomesData.length : 0,
-          })
-        }
-      } catch (error) {
-        console.error('Error fetching incomes:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    
     fetchIncomes()
-  }, [groupId, currentMonth])
+  }, [fetchIncomes])
+
+  // Escuchar evento para recargar ingresos (cuando se agrega uno nuevo desde el dashboard)
+  useEffect(() => {
+    const handleRefreshIncomes = () => {
+      fetchIncomes()
+    }
+    window.addEventListener('refreshIncomes', handleRefreshIncomes)
+    return () => window.removeEventListener('refreshIncomes', handleRefreshIncomes)
+  }, [fetchIncomes])
 
   // Filtrar ingresos
   const filteredIncomes = incomes.filter(income => {
@@ -434,6 +517,37 @@ export default function IncomesPage() {
                 className="h-full bg-purple-500 transition-all"
                 style={{ width: `${(stats.group / stats.total) * 100}%` }}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
+          <div className="relative bg-slate-900 rounded-2xl border border-slate-700 p-6 max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-white mb-2">
+              ¿Eliminar recurrencia?
+            </h3>
+            <p className="text-slate-400 text-sm mb-6">
+              Esto detendrá la generación de futuras transacciones. Las transacciones ya generadas no se eliminarán.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-700 text-slate-400 font-medium hover:bg-slate-800 transition-all"
+                disabled={deleting}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleDeleteTemplate(deleteConfirm)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-all disabled:opacity-50"
+                disabled={deleting}
+              >
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </button>
             </div>
           </div>
         </div>

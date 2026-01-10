@@ -41,3 +41,10 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# Documentation files that may contain sensitive info
+# Nota: Estos archivos ya fueron limpiados, pero los ignoramos para prevenir futuros commits
+# DATABASE_URL_SETUP.md
+# PRISMA_SSL_FIX.md
+# DEBUG_404_AFTER_LOGIN.md
+# OAUTH_FIX.md

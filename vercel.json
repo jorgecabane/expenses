@@ -4,5 +4,11 @@
   "installCommand": "npm install",
   "env": {
     "PRISMA_GENERATE_DATAPROXY": "true"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/recurring-transactions",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }

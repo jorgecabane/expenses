@@ -255,7 +255,11 @@ export default function DashboardContent({
         onOpenChange={setIncomeFormOpen}
         groupId={groupId}
         currency={groupCurrency}
-        onSuccess={refreshData}
+        onSuccess={() => {
+          refreshData()
+          // Disparar evento para recargar la página de ingresos si está abierta
+          window.dispatchEvent(new CustomEvent('refreshIncomes'))
+        }}
       />
 
       <div className="space-y-8">

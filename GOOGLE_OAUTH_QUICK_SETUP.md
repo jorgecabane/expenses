@@ -3,7 +3,7 @@
 ## Tu Callback URL de Supabase
 
 ```
-https://ljarrjjgajktymlbbumv.supabase.co/auth/v1/callback
+https://[PROJECT_REF].supabase.co/auth/v1/callback
 ```
 
 **IMPORTANTE**: Esta URL debe agregarse en Google Cloud Console.
@@ -43,7 +43,7 @@ https://ljarrjjgajktymlbbumv.supabase.co/auth/v1/callback
 6. **Authorized redirect URIs** (MUY IMPORTANTE):
    - ✅ **AGREGA ESTA URL** (copia exactamente):
      ```
-     https://ljarrjjgajktymlbbumv.supabase.co/auth/v1/callback
+     https://[PROJECT_REF].supabase.co/auth/v1/callback
      ```
    - Para desarrollo local (opcional):
      ```
@@ -83,7 +83,7 @@ Después de configurar:
 
 - Verifica que la URL de callback en Google Cloud Console sea **exactamente**:
   ```
-  https://ljarrjjgajktymlbbumv.supabase.co/auth/v1/callback
+  https://[PROJECT_REF].supabase.co/auth/v1/callback
   ```
 - No debe tener espacios, trailing slashes adicionales, etc.
 
@@ -96,7 +96,7 @@ Después de configurar:
 
 **Callback URL de Supabase (OBLIGATORIA en Google Cloud):**
 ```
-https://ljarrjjgajktymlbbumv.supabase.co/auth/v1/callback
+https://[PROJECT_REF].supabase.co/auth/v1/callback
 ```
 
 **URLs adicionales para desarrollo/producción (opcionales pero recomendadas):**

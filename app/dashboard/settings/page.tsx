@@ -354,6 +354,11 @@ export default function SettingsPage() {
     }
   }
 
+  // Handler para el botón de copiar
+  const handleCopyClick = () => {
+    copyInviteLink()
+  }
+
   // Reenviar invitación por email
   const handleResendInvite = async (invitation: PendingInvitation) => {
     if (!group) return
@@ -713,7 +718,7 @@ export default function SettingsPage() {
                       className="flex-1 bg-slate-800 border border-slate-600 rounded-lg py-2 px-3 text-sm text-slate-300 truncate"
                     />
                     <button
-                      onClick={copyInviteLink}
+                      onClick={handleCopyClick}
                       className="flex items-center gap-1 bg-slate-700 text-white text-sm font-medium py-2 px-3 rounded-lg hover:bg-slate-600 transition-colors"
                     >
                       <Copy className="w-4 h-4" />

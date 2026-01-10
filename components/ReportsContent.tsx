@@ -222,7 +222,7 @@ export default function ReportsContent({
                       border: '1px solid #334155',
                       borderRadius: '12px',
                     }}
-                    formatter={(value: number) => [formatCurrency(value, currency), '']}
+                    formatter={(value?: number) => [formatCurrency(value || 0, currency), '']}
                     labelStyle={{ color: '#94a3b8' }}
                   />
                   <Bar dataKey="income" name="Ingresos" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -243,7 +243,7 @@ export default function ReportsContent({
                       border: '1px solid #334155',
                       borderRadius: '12px',
                     }}
-                    formatter={(value: number) => [formatCurrency(value, currency), '']}
+                    formatter={(value?: number) => [formatCurrency(value || 0, currency), '']}
                     labelStyle={{ color: '#94a3b8' }}
                   />
                   <Line 
@@ -315,7 +315,7 @@ export default function ReportsContent({
                         border: '1px solid #334155',
                         borderRadius: '12px',
                       }}
-                      formatter={(value: number) => [formatCurrency(value, currency), '']}
+                      formatter={(value?: number) => [formatCurrency(value || 0, currency), '']}
                     />
                   </PieChart>
                 </ResponsiveContainer>

@@ -21,17 +21,24 @@ const poolConfig: any = {
   connectionString,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  // Para Supabase pooler, necesitamos SSL pero con rejectUnauthorized: false
+  connectionTimeoutMillis: 30000, // Aumentado a 30 segundos para evitar timeouts
+  // Para Supabase, necesitamos SSL pero con rejectUnauthorized: false
+  // Esto es necesario porque Supabase usa certificados auto-firmados
   ssl: (connectionString.includes('supabase.co') || connectionString.includes('supabase'))
     ? {
         rejectUnauthorized: false,
-        // Permitir certificados auto-firmados de Supabase
+        require: true,
       }
-    : undefined,
+    : false, // false en lugar de undefined para desactivar SSL explícitamente si no es Supabase
 }
 
+// Crear pool con manejo de errores mejorado
 const pool = new Pool(poolConfig)
+
+// Manejar errores del pool
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err)
+})
 
 const adapter = new PrismaPg(pool)
 

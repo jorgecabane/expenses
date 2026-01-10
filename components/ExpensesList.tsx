@@ -14,9 +14,14 @@ import {
   Plus,
   X,
   MoreVertical,
-  TrendingDown
+  TrendingDown,
+  Repeat,
+  Pause,
+  Play
 } from 'lucide-react'
+import { toast } from 'sonner'
 import ExpenseForm from './ExpenseForm'
+import { formatRecurrenceConfig, type RecurringConfig } from '@/lib/recurrence'
 
 interface Expense {
   id: string
@@ -33,6 +38,10 @@ interface Expense {
   isOwner: boolean
 }
 
+interface RecurringTemplate extends Expense {
+  recurringConfig: RecurringConfig
+}
+
 interface Category {
   id: string
   name: string
@@ -44,6 +53,7 @@ interface Category {
 
 interface ExpensesListProps {
   expenses: Expense[]
+  recurringTemplates?: RecurringTemplate[]
   categories: Category[]
   groupId: string
   groupCurrency: string
@@ -81,6 +91,7 @@ function formatFullDate(dateStr: string) {
 
 export default function ExpensesList({
   expenses,
+  recurringTemplates = [],
   categories,
   groupId,
   groupCurrency,
@@ -96,6 +107,10 @@ export default function ExpensesList({
   const [expenseFormOpen, setExpenseFormOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [pausingTemplate, setPausingTemplate] = useState<string | null>(null)
+  const [editingTemplate, setEditingTemplate] = useState<RecurringTemplate | null>(null)
+  const [showEditConfirm, setShowEditConfirm] = useState(false)
+  const [editAffectFuture, setEditAffectFuture] = useState<boolean | null>(null)
 
   // Filtrar gastos
   const filteredExpenses = useMemo(() => {
@@ -175,9 +190,68 @@ export default function ExpensesList({
       if (res.ok) {
         router.refresh()
         setDeleteConfirm(null)
+        toast.success('Gasto eliminado')
       }
     } catch (error) {
       console.error('Error deleting expense:', error)
+      toast.error('Error al eliminar gasto')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  // Pausar/Reanudar template recurrente
+  const handleTogglePause = async (template: RecurringTemplate) => {
+    setPausingTemplate(template.id)
+    try {
+      const config = template.recurringConfig
+      const updatedConfig: RecurringConfig = {
+        ...config,
+        isPaused: !config.isPaused,
+      }
+
+      const res = await fetch(`/api/expenses/${template.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recurringConfig: updatedConfig,
+        }),
+      })
+
+      if (res.ok) {
+        router.refresh()
+        toast.success(updatedConfig.isPaused ? 'Recurrencia pausada' : 'Recurrencia reanudada')
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Error al actualizar recurrencia')
+      }
+    } catch (error) {
+      console.error('Error toggling pause:', error)
+      toast.error('Error al actualizar recurrencia')
+    } finally {
+      setPausingTemplate(null)
+    }
+  }
+
+  // Eliminar template recurrente (elimina el template, detiene futuras generaciones)
+  const handleDeleteTemplate = async (templateId: string) => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/expenses/${templateId}`, {
+        method: 'DELETE',
+      })
+      
+      if (res.ok) {
+        router.refresh()
+        setDeleteConfirm(null)
+        toast.success('Recurrencia eliminada')
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Error al eliminar recurrencia')
+      }
+    } catch (error) {
+      console.error('Error deleting template:', error)
+      toast.error('Error al eliminar recurrencia')
     } finally {
       setDeleting(false)
     }
@@ -185,13 +259,88 @@ export default function ExpensesList({
 
   return (
     <>
+      {/* Edit Confirmation Modal - Para templates recurrentes */}
+      {showEditConfirm && editingTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => {
+            setShowEditConfirm(false)
+            setEditAffectFuture(null)
+            setEditingTemplate(null)
+          }} />
+          <div className="relative bg-slate-900 rounded-2xl border border-slate-700 p-6 max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-white mb-2">Editar recurrencia</h3>
+            <p className="text-slate-400 text-sm mb-6">
+              ¿Cómo quieres aplicar los cambios?
+            </p>
+            <div className="space-y-3 mb-6">
+              <button
+                onClick={() => {
+                  setEditAffectFuture(false)
+                  setShowEditConfirm(false)
+                  setExpenseFormOpen(true)
+                }}
+                className="w-full py-3 px-4 rounded-xl border-2 border-slate-700 text-slate-300 hover:border-emerald-500 hover:bg-emerald-500/10 transition-all text-left"
+              >
+                <div className="font-medium mb-1">Solo esta ocurrencia</div>
+                <div className="text-xs text-slate-400">
+                  Crear una nueva transacción con los cambios, sin modificar el template
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  setEditAffectFuture(true)
+                  setShowEditConfirm(false)
+                  setExpenseFormOpen(true)
+                }}
+                className="w-full py-3 px-4 rounded-xl border-2 border-slate-700 text-slate-300 hover:border-emerald-500 hover:bg-emerald-500/10 transition-all text-left"
+              >
+                <div className="font-medium mb-1">Todas las futuras</div>
+                <div className="text-xs text-slate-400">
+                  Actualizar el template para que todos los futuros gastos usen los nuevos valores
+                </div>
+              </button>
+            </div>
+            <button
+              onClick={() => {
+                setShowEditConfirm(false)
+                setEditAffectFuture(null)
+                setEditingTemplate(null)
+              }}
+              className="w-full py-2.5 px-4 rounded-xl border border-slate-700 text-slate-400 font-medium hover:bg-slate-800 transition-all"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Expense Form Modal */}
       <ExpenseForm
         open={expenseFormOpen}
-        onOpenChange={setExpenseFormOpen}
+        onOpenChange={(open) => {
+          setExpenseFormOpen(open)
+          if (!open) {
+            setEditingTemplate(null)
+            setEditAffectFuture(null)
+          }
+        }}
         groupId={groupId}
         categories={categories}
         currency={groupCurrency}
+        expenseId={editingTemplate && editAffectFuture === true ? editingTemplate.id : undefined}
+        initialValues={editingTemplate ? {
+          amount: editingTemplate.amount,
+          description: editingTemplate.description,
+          categoryId: editingTemplate.categoryId,
+          date: editingTemplate.date,
+          recurringConfig: editingTemplate.recurringConfig,
+        } : undefined}
+        affectFuture={editAffectFuture}
+        onSuccess={() => {
+          router.refresh()
+          setEditingTemplate(null)
+          setEditAffectFuture(null)
+        }}
       />
 
       {/* Delete Confirmation Modal */}
@@ -199,8 +348,16 @@ export default function ExpensesList({
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
           <div className="relative bg-slate-900 rounded-2xl border border-slate-700 p-6 max-w-sm mx-4">
-            <h3 className="text-lg font-semibold text-white mb-2">¿Eliminar gasto?</h3>
-            <p className="text-slate-400 text-sm mb-6">Esta acción no se puede deshacer.</p>
+            <h3 className="text-lg font-semibold text-white mb-2">
+              {recurringTemplates.some(t => t.id === deleteConfirm)
+                ? '¿Eliminar recurrencia?'
+                : '¿Eliminar gasto?'}
+            </h3>
+            <p className="text-slate-400 text-sm mb-6">
+              {recurringTemplates.some(t => t.id === deleteConfirm)
+                ? 'Esto detendrá la generación de futuras transacciones. Las transacciones ya generadas no se eliminarán.'
+                : 'Esta acción no se puede deshacer.'}
+            </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirm(null)}
@@ -210,7 +367,13 @@ export default function ExpensesList({
                 Cancelar
               </button>
               <button
-                onClick={() => handleDelete(deleteConfirm)}
+                onClick={() => {
+                  if (recurringTemplates.some(t => t.id === deleteConfirm)) {
+                    handleDeleteTemplate(deleteConfirm)
+                  } else {
+                    handleDelete(deleteConfirm)
+                  }
+                }}
                 className="flex-1 py-2.5 px-4 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-all disabled:opacity-50"
                 disabled={deleting}
               >
@@ -250,6 +413,97 @@ export default function ExpensesList({
             <p className="text-xl font-bold text-white">{formatCurrency(totalExpenses, groupCurrency)}</p>
           </div>
         </div>
+
+        {/* Recurring Templates Section */}
+        {recurringTemplates.length > 0 && (
+          <div className="bg-slate-800/50 rounded-2xl border border-slate-700 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Repeat className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-lg font-semibold text-white">Gastos Recurrentes</h2>
+                <span className="text-sm text-slate-500">({recurringTemplates.length})</span>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {recurringTemplates.map(template => {
+                const config = template.recurringConfig
+                const isPaused = config?.isPaused || false
+                return (
+                  <div
+                    key={template.id}
+                    className="bg-slate-900/50 rounded-xl border border-slate-700 p-4 hover:border-slate-600 transition-colors"
+                  >
+                    <div className="flex items-start gap-4">
+                      {/* Icon */}
+                      <div className="w-12 h-12 rounded-xl bg-slate-700 flex items-center justify-center text-xl flex-shrink-0">
+                        {template.categoryIcon}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-white font-medium">
+                            {template.description || template.categoryName}
+                          </p>
+                          {isPaused && (
+                            <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full">
+                              Pausado
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-slate-400 mb-2">
+                          <span>{formatCurrency(template.amount, groupCurrency)}</span>
+                          <span>•</span>
+                          <span>{template.categoryName}</span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <Repeat className="w-3 h-3" />
+                            {formatRecurrenceConfig(config)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleTogglePause(template)}
+                          disabled={pausingTemplate === template.id}
+                          className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+                          title={isPaused ? 'Reanudar' : 'Pausar'}
+                        >
+                          {pausingTemplate === template.id ? (
+                            <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                          ) : isPaused ? (
+                            <Play className="w-4 h-4" />
+                          ) : (
+                            <Pause className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingTemplate(template)
+                            setExpenseFormOpen(true)
+                          }}
+                          className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm(template.id)}
+                          className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Search and filters */}
         <div className="space-y-3">

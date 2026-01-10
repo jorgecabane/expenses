@@ -8,7 +8,7 @@ Error: `self-signed certificate in certificate chain` al conectar a Supabase con
 
 Tu `DATABASE_URL` actual usa el **pooler de Supabase**:
 ```
-postgres://postgres.ljarrjjgajktymlbbumv:...@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true
+postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true
 ```
 
 ### Opción 1: Usar Connection String Directa (Recomendada para desarrollo)
@@ -17,7 +17,7 @@ postgres://postgres.ljarrjjgajktymlbbumv:...@aws-1-sa-east-1.pooler.supabase.com
 2. En **Connection string**, selecciona **URI** (NO "Connection Pooling")
 3. Copia la connection string (será algo como):
    ```
-   postgresql://postgres.ljarrjjgajktymlbbumv:[PASSWORD]@aws-1-sa-east-1.connect.supabase.com:5432/postgres
+   postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-sa-east-1.connect.supabase.com:5432/postgres
    ```
 4. Reemplaza `DATABASE_URL` en tu `.env.local` con esta nueva connection string
 5. Agrega `?sslmode=require` al final si no lo tiene
@@ -29,8 +29,9 @@ Si quieres seguir usando el pooler, asegúrate de que:
 1. Tu `.env.local` tenga:
    ```bash
    NODE_TLS_REJECT_UNAUTHORIZED=0
-   DATABASE_URL="postgres://postgres.ljarrjjgajktymlbbumv:...@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
+   DATABASE_URL="postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
    ```
+   - Obtén el valor real desde Supabase Dashboard → Settings → Database
 
 2. Reinicia el servidor completamente:
    ```bash

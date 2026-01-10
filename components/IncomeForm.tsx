@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { X, TrendingUp, Loader2, Check, Calendar, User, Users } from 'lucide-react'
+import { X, TrendingUp, Loader2, Check, Calendar, User, Users, Repeat } from 'lucide-react'
+import RecurrenceModal from './RecurrenceModal'
+import { type RecurringConfig, formatRecurrenceConfig } from '@/lib/recurrence'
 
 interface IncomeFormProps {
   open: boolean
@@ -25,6 +27,8 @@ export default function IncomeForm({
   const [description, setDescription] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [type, setType] = useState<'personal' | 'group'>('group')
+  const [recurringConfig, setRecurringConfig] = useState<RecurringConfig | null>(null)
+  const [showRecurrenceModal, setShowRecurrenceModal] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -36,6 +40,8 @@ export default function IncomeForm({
       setDescription('')
       setDate(new Date().toISOString().split('T')[0])
       setType('group')
+      setRecurringConfig(null)
+      setShowRecurrenceModal(false)
       setError(null)
       setSuccess(false)
     }
@@ -69,6 +75,8 @@ export default function IncomeForm({
           description: description || null,
           date: new Date(date).toISOString(),
           type,
+          isRecurring: !!recurringConfig,
+          recurringConfig: recurringConfig || null,
         }),
       })
 
@@ -114,7 +122,7 @@ export default function IncomeForm({
       />
       
       {/* Modal */}
-      <div className="relative w-full max-w-md mx-4 bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-md mx-4 bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Success overlay */}
         {success && (
           <div className="absolute inset-0 z-10 bg-slate-900/95 flex flex-col items-center justify-center">
@@ -144,8 +152,8 @@ export default function IncomeForm({
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+        {/* Form - Scrollable */}
+        <form onSubmit={handleSubmit} className="p-5 space-y-5 overflow-y-auto flex-1">
           {/* Monto */}
           <div className="text-center py-4">
             <label className="text-sm text-slate-500 mb-2 block">Monto</label>
@@ -230,6 +238,56 @@ export default function IncomeForm({
             </div>
           </div>
 
+          {/* Recurrencia */}
+          <div className="space-y-2">
+            <label className="flex items-center justify-between cursor-pointer group">
+              <span className="text-sm font-medium text-slate-400 group-hover:text-slate-300 transition-colors">
+                ¿Es recurrente?
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!recurringConfig) {
+                    setShowRecurrenceModal(true)
+                  } else {
+                    setRecurringConfig(null)
+                  }
+                }}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  recurringConfig
+                    ? 'bg-emerald-500'
+                    : 'bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
+                    recurringConfig ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </label>
+            {recurringConfig && (
+              <div className="p-3 bg-slate-800/50 border border-slate-700 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-xs text-slate-500 mb-1">Recurrencia configurada</p>
+                    <p className="text-sm text-white font-medium">
+                      {formatRecurrenceConfig(recurringConfig)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowRecurrenceModal(true)}
+                    className="ml-3 p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                    title="Editar recurrencia"
+                  >
+                    <Repeat className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Error */}
           {error && (
             <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
@@ -264,6 +322,18 @@ export default function IncomeForm({
           </div>
         </form>
       </div>
+
+      {/* Modal de recurrencia */}
+      <RecurrenceModal
+        open={showRecurrenceModal}
+        onOpenChange={setShowRecurrenceModal}
+        selectedDate={new Date(date)}
+        value={recurringConfig}
+        onSave={(config) => {
+          setRecurringConfig(config)
+        }}
+        isEdit={!!recurringConfig}
+      />
     </div>
   )
 }

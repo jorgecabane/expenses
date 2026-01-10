@@ -4,7 +4,7 @@
 
 ### Para Desarrollo Local (Direct Connection)
 ```
-POSTGRES_URL_NON_POOLING="postgres://postgres.ljarrjjgajktymlbbumv:YoV1ksPOb4A5yzKj@aws-1-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+POSTGRES_URL_NON_POOLING="postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
 ```
 - **Puerto**: 5432 (direct connection)
 - **Ventaja**: Más simple, menos problemas con SSL en desarrollo
@@ -12,7 +12,7 @@ POSTGRES_URL_NON_POOLING="postgres://postgres.ljarrjjgajktymlbbumv:YoV1ksPOb4A5y
 
 ### Para Producción (Connection Pooling)
 ```
-POSTGRES_PRISMA_URL="postgres://postgres.ljarrjjgajktymlbbumv:YoV1ksPOb4A5yzKj@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
+POSTGRES_PRISMA_URL="postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
 ```
 - **Puerto**: 6543 (pooler)
 - **Ventaja**: Mejor rendimiento, maneja más conexiones
@@ -24,7 +24,7 @@ POSTGRES_PRISMA_URL="postgres://postgres.ljarrjjgajktymlbbumv:YoV1ksPOb4A5yzKj@a
 
 ```bash
 # Usar connection directa para desarrollo
-DATABASE_URL="postgres://postgres.ljarrjjgajktymlbbumv:YoV1ksPOb4A5yzKj@aws-1-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+DATABASE_URL="postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
 
 # O simplemente usar la variable que ya tienes
 # DATABASE_URL=$POSTGRES_URL_NON_POOLING
@@ -36,7 +36,7 @@ En Vercel Dashboard → Settings → Environment Variables:
 
 ```bash
 # Usar pooler para producción
-DATABASE_URL="postgres://postgres.ljarrjjgajktymlbbumv:YoV1ksPOb4A5yzKj@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
+DATABASE_URL="postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
 
 # O mapear desde POSTGRES_PRISMA_URL
 ```
@@ -52,13 +52,15 @@ El código en `lib/prisma.ts` ahora:
 
 1. **Desarrollo**: Actualiza tu `.env.local`:
    ```bash
-   DATABASE_URL="postgres://postgres.ljarrjjgajktymlbbumv:YoV1ksPOb4A5yzKj@aws-1-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+   DATABASE_URL="postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
    ```
+   - Obtén el valor real desde Supabase Dashboard → Settings → Database → Connection string
 
 2. **Producción**: En Vercel, configura:
    ```bash
-   DATABASE_URL="postgres://postgres.ljarrjjgajktymlbbumv:YoV1ksPOb4A5yzKj@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
+   DATABASE_URL="postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
    ```
+   - Obtén el valor real desde Supabase Dashboard → Settings → Database → Connection Pooling
 
 ## Nota sobre SSL
 

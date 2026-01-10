@@ -46,8 +46,12 @@ export async function GET(request: NextRequest) {
       lte: endDate,
     }
 
+    // Obtener ingresos del mes (excluir templates recurrentes)
     const incomes = await prisma.income.findMany({
-      where,
+      where: {
+        ...where,
+        isRecurring: false, // Solo transacciones generadas, no templates
+      },
       include: {
         creator: {
           select: {
@@ -62,7 +66,35 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ incomes })
+    // Obtener templates recurrentes si se solicita
+    const includeRecurring = searchParams.get('includeRecurring') === 'true'
+    let recurringTemplates: any[] = []
+    
+    if (includeRecurring) {
+      recurringTemplates = await prisma.income.findMany({
+        where: {
+          groupId,
+          isRecurring: true,
+        },
+        include: {
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      })
+    }
+
+    return NextResponse.json({ 
+      incomes,
+      ...(includeRecurring && { recurringTemplates }),
+    })
   } catch (error) {
     console.error('Error fetching incomes:', error)
     return NextResponse.json(
@@ -81,7 +113,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { groupId, amount, description, date, type } = body
+    const { groupId, amount, description, date, type, isRecurring = false, recurringConfig } = body
 
     // type: 'personal' | 'group'
     // Si es 'group', userId = null (presupuesto del grupo)
@@ -110,6 +142,8 @@ export async function POST(request: NextRequest) {
         description: description || null,
         date: date ? new Date(date) : new Date(),
         createdBy: user.id,
+        isRecurring: isRecurring || false,
+        recurringConfig: recurringConfig || null,
       },
       include: {
         creator: {

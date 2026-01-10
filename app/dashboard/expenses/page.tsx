@@ -36,6 +36,7 @@ export default async function ExpensesPage() {
   const activeGroup = membership.group
 
   // Obtener todos los gastos del grupo (últimos 3 meses por defecto)
+  // Excluir templates recurrentes (solo mostrar transacciones generadas)
   const threeMonthsAgo = new Date()
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
 
@@ -45,6 +46,7 @@ export default async function ExpensesPage() {
       date: {
         gte: threeMonthsAgo,
       },
+      isRecurring: false, // Solo transacciones generadas, no templates
     },
     include: {
       category: {
@@ -66,6 +68,31 @@ export default async function ExpensesPage() {
     ],
   })
 
+  // Obtener templates recurrentes (solo los que tienen isRecurring = true)
+  const recurringTemplates = await prisma.expense.findMany({
+    where: {
+      groupId: activeGroup.id,
+      isRecurring: true,
+    },
+    include: {
+      category: {
+        include: {
+          owner: true,
+        },
+      },
+      creator: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  })
+
   // Preparar datos para el cliente
   const expensesData = expenses.map(exp => ({
     id: exp.id,
@@ -77,9 +104,9 @@ export default async function ExpensesPage() {
     categoryIcon: exp.category?.icon || '📁',
     categoryColor: exp.category?.color || 'bg-gray-500',
     isPersonal: exp.category?.isPersonal || false,
-    creatorId: exp.creatorId,
+    creatorId: exp.createdBy,
     creatorName: exp.creator?.name || exp.creator?.email?.split('@')[0] || 'Usuario',
-    isOwner: exp.creatorId === user.id,
+    isOwner: exp.createdBy === user.id,
   }))
 
   const categoriesData = activeGroup.categories.map(cat => ({
@@ -89,6 +116,23 @@ export default async function ExpensesPage() {
     color: cat.color,
     isPersonal: cat.isPersonal,
     ownerId: cat.ownerId,
+  }))
+
+  // Preparar datos de templates recurrentes
+  const recurringTemplatesData = recurringTemplates.map(template => ({
+    id: template.id,
+    amount: Number(template.amount),
+    description: template.description || '',
+    date: template.date.toISOString(),
+    categoryId: template.categoryId,
+    categoryName: template.category?.name || 'Sin categoría',
+    categoryIcon: template.category?.icon || '📁',
+    categoryColor: template.category?.color || 'bg-gray-500',
+    isPersonal: template.category?.isPersonal || false,
+    creatorId: template.createdBy,
+    creatorName: template.creator?.name || template.creator?.email?.split('@')[0] || 'Usuario',
+    isOwner: template.createdBy === user.id,
+    recurringConfig: template.recurringConfig as any,
   }))
 
   // Calcular totales
@@ -103,6 +147,7 @@ export default async function ExpensesPage() {
   return (
     <ExpensesList
       expenses={expensesData}
+      recurringTemplates={recurringTemplatesData}
       categories={categoriesData}
       groupId={activeGroup.id}
       groupCurrency={activeGroup.currency}
