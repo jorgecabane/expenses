@@ -258,11 +258,12 @@ export default function SettingsPage() {
   const handleDeleteCategory = async (categoryId: string) => {
     const category = categories.find(c => c.id === categoryId)
     
+    // Mostrar confirmación antes de eliminar
     toast.custom((t) => (
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 shadow-xl max-w-sm">
         <p className="text-white font-medium mb-2">¿Eliminar bolsillo?</p>
         <p className="text-slate-400 text-sm mb-4">
-          Los gastos de "{category?.name}" quedarán sin categoría.
+          Esta acción no se puede deshacer. El bolsillo "{category?.name}" será eliminado permanentemente.
         </p>
         <div className="flex gap-2">
           <button
@@ -276,7 +277,11 @@ export default function SettingsPage() {
                   setCategories(categories.filter(cat => cat.id !== categoryId))
                   toast.success('Bolsillo eliminado')
                 } else {
-                  toast.error('Error al eliminar')
+                  const data = await res.json()
+                  toast.error(data.error || 'No se puede eliminar este bolsillo', {
+                    description: data.message || 'Este bolsillo tiene gastos asociados y no puede ser eliminado para mantener la integridad de tus registros.',
+                    duration: 6000,
+                  })
                 }
               } catch {
                 toast.error('Error al eliminar')

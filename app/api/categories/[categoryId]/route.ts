@@ -60,7 +60,7 @@ export async function PATCH(
   }
 }
 
-// DELETE - Eliminar categoría (archivar)
+// DELETE - Eliminar categoría
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ categoryId: string }> }
@@ -81,10 +81,75 @@ export async function DELETE(
       )
     }
 
-    // Por ahora eliminamos, pero en el futuro podríamos archivar
-    await prisma.category.delete({
-      where: { id: categoryId },
+    // Verificar si hay gastos asociados a esta categoría
+    // Esto incluye tanto gastos normales como gastos recurrentes (templates)
+    // Usar una transacción para asegurar que la verificación y eliminación sean atómicas
+    const result = await prisma.$transaction(async (tx) => {
+      // Primero verificar si existe la categoría
+      const category = await tx.category.findUnique({
+        where: { id: categoryId },
+        select: { id: true },
+      })
+
+      if (!category) {
+        throw new Error('Categoría no encontrada')
+      }
+
+      // Contar gastos asociados (incluyendo recurrentes)
+      const expensesCount = await tx.expense.count({
+        where: { 
+          categoryId,
+        },
+      })
+
+      // Log para debugging
+      console.log(`[DELETE Category] categoryId: ${categoryId}, expensesCount: ${expensesCount}`)
+
+      if (expensesCount > 0) {
+        // Obtener detalles de los gastos para el mensaje
+        const expenses = await tx.expense.findMany({
+          where: { categoryId },
+          select: {
+            id: true,
+            isRecurring: true,
+            description: true,
+            date: true,
+          },
+          take: 5, // Solo los primeros 5 para el mensaje
+        })
+
+        const recurringCount = expenses.filter(e => e.isRecurring).length
+        const regularCount = expenses.filter(e => !e.isRecurring).length
+
+        return {
+          canDelete: false,
+          expensesCount,
+          message: `Este bolsillo tiene ${expensesCount} gasto${expensesCount > 1 ? 's' : ''} asociado${expensesCount > 1 ? 's' : ''} (${recurringCount} recurrente${recurringCount !== 1 ? 's' : ''}, ${regularCount} regular${regularCount !== 1 ? 'es' : ''})`,
+        }
+      }
+
+      // Si no hay gastos, proceder con la eliminación
+      await tx.category.delete({
+        where: { id: categoryId },
+      })
+
+      return {
+        canDelete: true,
+        expensesCount: 0,
+      }
     })
+
+    // Si no se puede eliminar, retornar error
+    if (!result.canDelete) {
+      return NextResponse.json(
+        { 
+          error: 'No se puede eliminar un bolsillo que tiene gastos asociados',
+          expensesCount: result.expensesCount,
+          message: result.message,
+        },
+        { status: 400 }
+      )
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
