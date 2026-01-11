@@ -92,6 +92,7 @@ export default function ExpenseForm({
       setShowRecurrenceModal(false)
       setError(null)
       setSuccess(false)
+      setLoading(false) // Resetear el estado de loading
     }
   }, [open, defaultCategoryId])
 
@@ -141,6 +142,7 @@ export default function ExpenseForm({
       }
 
       setSuccess(true)
+      setLoading(false) // Resetear loading antes de cerrar
       toast.success(expenseId ? 'Gasto actualizado' : 'Gasto registrado', { 
         description: `$${parseFloat(amount).toLocaleString('es-CL')} en ${categories.find(c => c.id === categoryId)?.name}`
       })
