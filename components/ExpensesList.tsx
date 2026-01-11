@@ -71,21 +71,37 @@ function formatCurrency(amount: number, currency: string = 'CLP') {
 }
 
 function formatDate(dateStr: string) {
+  // Parsear la fecha como YYYY-MM-DD o ISO string y usar métodos UTC para evitar problemas de zona horaria
+  const dateMatch = dateStr.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (dateMatch) {
+    const [year, month, day] = dateMatch[1].split('-').map(Number)
+    const date = new Date(Date.UTC(year, month - 1, day))
+    return date.toLocaleDateString('es-CL', { 
+      day: 'numeric', 
+      month: 'short',
+      year: date.getUTCFullYear() !== new Date().getUTCFullYear() ? 'numeric' : undefined,
+      timeZone: 'UTC'
+    })
+  }
   const date = new Date(dateStr)
   return date.toLocaleDateString('es-CL', { 
     day: 'numeric', 
     month: 'short',
-    year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+    year: date.getUTCFullYear() !== new Date().getUTCFullYear() ? 'numeric' : undefined,
+    timeZone: 'UTC'
   })
 }
 
 function formatFullDate(dateStr: string) {
-  const date = new Date(dateStr)
+  // Parsear la fecha como YYYY-MM-DD y usar métodos UTC para evitar problemas de zona horaria
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
   return date.toLocaleDateString('es-CL', { 
     weekday: 'long',
     day: 'numeric', 
     month: 'long',
-    year: 'numeric'
+    year: 'numeric',
+    timeZone: 'UTC'
   })
 }
 
@@ -131,25 +147,36 @@ export default function ExpensesList({
     }
 
     // Filtro por rango de fecha
+    // Usar UTC para evitar problemas de zona horaria
     const now = new Date()
     let startDate: Date | null = null
 
     switch (dateRange) {
       case 'week':
-        startDate = new Date(now)
-        startDate.setDate(now.getDate() - 7)
+        // 7 días atrás desde hoy en UTC
+        const weekAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 7))
+        startDate = weekAgo
         break
       case 'month':
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+        // Primer día del mes actual en UTC
+        startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
         break
       case '3months':
-        startDate = new Date(now)
-        startDate.setMonth(now.getMonth() - 3)
+        // 3 meses atrás en UTC
+        const threeMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, now.getUTCDate()))
+        startDate = threeMonthsAgo
         break
     }
 
     if (startDate) {
-      result = result.filter(exp => new Date(exp.date) >= startDate!)
+      // Comparar fechas en UTC
+      result = result.filter(exp => {
+        const expDate = new Date(exp.date)
+        // Comparar solo la parte de fecha (sin hora) en UTC
+        const expDateUTC = new Date(Date.UTC(expDate.getUTCFullYear(), expDate.getUTCMonth(), expDate.getUTCDate()))
+        const startDateUTC = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()))
+        return expDateUTC >= startDateUTC
+      })
     }
 
     return result
@@ -678,7 +705,7 @@ export default function ExpensesList({
 
                         {/* Actions (solo si es owner) */}
                         {expense.isOwner && (
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1">
                             <button 
                               onClick={() => setDeleteConfirm(expense.id)}
                               className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"

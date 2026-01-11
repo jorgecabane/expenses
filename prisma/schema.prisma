@@ -11,12 +11,13 @@ datasource db {
 
 // User profile (extends Supabase auth.users)
 model User {
-  id        String   @id
-  email     String   @unique
-  name      String?
-  avatarUrl String?  @map("avatar_url")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id            String   @id
+  email         String   @unique
+  name          String?
+  avatarUrl     String?  @map("avatar_url")
+  activeGroupId String?  @map("active_group_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   // Relations
   createdGroups     FamilyGroup[]      @relation("GroupOwner")

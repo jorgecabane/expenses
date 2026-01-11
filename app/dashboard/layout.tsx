@@ -156,20 +156,57 @@ export default function DashboardLayout({
     }
   }
 
-  // Función para cargar grupos
+  // Función para cargar grupos y grupo activo
   const fetchGroups = useCallback(async () => {
     try {
-      const res = await fetch('/api/groups')
-      if (res.ok) {
-        const data = await res.json()
-        setGroups(data.groups || [])
-        if (data.groups && data.groups.length > 0) {
+      // Cargar grupos y usuario (que incluye activeGroupId)
+      const [groupsRes, userRes] = await Promise.all([
+        fetch('/api/groups'),
+        fetch('/api/user'),
+      ])
+      
+      if (groupsRes.ok) {
+        const groupsData = await groupsRes.json()
+        setGroups(groupsData.groups || [])
+        
+        if (groupsData.groups && groupsData.groups.length > 0) {
+          let groupToSet: Group | null = null
+          
+          // Si tenemos el usuario con activeGroupId, usarlo
+          if (userRes.ok) {
+            const userData = await userRes.json()
+            if (userData.user?.activeGroupId) {
+              const savedGroup = groupsData.groups.find((g: Group) => g.id === userData.user.activeGroupId)
+              if (savedGroup) {
+                groupToSet = savedGroup
+              }
+            }
+          }
+          
+          // Si no hay grupo activo guardado, usar el primero
+          if (!groupToSet) {
+            groupToSet = groupsData.groups[0]
+            // Guardar el primer grupo como activo si no hay uno guardado
+            if (groupToSet && userRes.ok) {
+              const userData = await userRes.json()
+              if (!userData.user?.activeGroupId) {
+                // Actualizar en BD
+                await fetch('/api/user', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ activeGroupId: groupToSet.id }),
+                })
+              }
+            }
+          }
+          
           // Si ya hay un grupo activo, actualizarlo con los nuevos datos
-          if (activeGroup) {
-            const updated = data.groups.find((g: Group) => g.id === activeGroup.id)
-            if (updated) setActiveGroup(updated)
-          } else {
-            setActiveGroup(data.groups[0])
+          if (groupToSet) {
+            if (activeGroup && activeGroup.id === groupToSet.id) {
+              setActiveGroup(groupToSet)
+            } else {
+              setActiveGroup(groupToSet)
+            }
           }
         }
       }
@@ -341,9 +378,24 @@ export default function DashboardLayout({
                         {groups.map((group) => (
                           <button
                             key={group.id}
-                            onClick={() => {
+                            onClick={async () => {
                               setActiveGroup(group)
                               setGroupDropdownOpen(false)
+                              
+                              // Guardar grupo activo en base de datos
+                              try {
+                                await fetch('/api/user', {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ activeGroupId: group.id }),
+                                })
+                                
+                                // Refrescar los Server Components sin recargar toda la página
+                                router.refresh()
+                              } catch (error) {
+                                console.error('Error updating active group:', error)
+                                toast.error('Error al cambiar de espacio')
+                              }
                             }}
                             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                               activeGroup?.id === group.id 

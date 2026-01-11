@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
 import { 
   TrendingUp, 
   Plus, 
@@ -22,6 +21,14 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatRecurrenceConfig, type RecurringConfig } from '@/lib/recurrence'
+import IncomeForm from '@/components/IncomeForm'
+import { createBrowserClient } from '@supabase/ssr'
+
+interface Group {
+  id: string
+  name: string
+  currency: string
+}
 
 interface Income {
   id: string
@@ -62,6 +69,7 @@ function formatDate(dateString: string) {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
+    timeZone: 'UTC', // Formatear en UTC para evitar conversión a hora local
   })
 }
 
@@ -84,17 +92,54 @@ export default function IncomesPage() {
   const [pausingTemplate, setPausingTemplate] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [incomeFormOpen, setIncomeFormOpen] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // Obtener grupo activo
   useEffect(() => {
     async function fetchGroup() {
       try {
-        const res = await fetch('/api/groups')
-        if (res.ok) {
-          const data = await res.json()
-          if (data.groups && data.groups.length > 0) {
-            setGroupId(data.groups[0].id)
-            setCurrency(data.groups[0].currency || 'CLP')
+        // Obtener usuario actual
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          setCurrentUserId(user.id)
+        }
+
+        // Obtener usuario (que incluye activeGroupId) y grupos
+        const [userRes, groupsRes] = await Promise.all([
+          fetch('/api/user'),
+          fetch('/api/groups'),
+        ])
+        
+        if (groupsRes.ok) {
+          const groupsData = await groupsRes.json()
+          if (groupsData.groups && groupsData.groups.length > 0) {
+            let selectedGroup = groupsData.groups[0]
+            
+            // Si tenemos el usuario con activeGroupId, usarlo
+            if (userRes.ok) {
+              const userData = await userRes.json()
+              if (userData.user?.activeGroupId) {
+                const found = groupsData.groups.find((g: Group) => g.id === userData.user.activeGroupId)
+                if (found) {
+                  selectedGroup = found
+                }
+              } else {
+                // Si no hay grupo activo guardado, guardar el primero
+                await fetch('/api/user', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ activeGroupId: selectedGroup.id }),
+                })
+              }
+            }
+            
+            setGroupId(selectedGroup.id)
+            setCurrency(selectedGroup.currency || 'CLP')
           }
         }
       } catch (error) {
@@ -201,6 +246,30 @@ export default function IncomesPage() {
     }
   }
 
+  // Eliminar ingreso histórico
+  const handleDeleteIncome = async (incomeId: string) => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/incomes/${incomeId}`, {
+        method: 'DELETE',
+      })
+      
+      if (res.ok) {
+        fetchIncomes()
+        setDeleteConfirm(null)
+        toast.success('Ingreso eliminado')
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Error al eliminar ingreso')
+      }
+    } catch (error) {
+      console.error('Error deleting income:', error)
+      toast.error('Error al eliminar ingreso')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   // Cargar ingresos cuando cambia el grupo o el mes
   useEffect(() => {
     fetchIncomes()
@@ -229,13 +298,15 @@ export default function IncomesPage() {
     return matchesSearch && matchesType
   })
 
-  // Agrupar ingresos por día
+  // Agrupar ingresos por día usando UTC para evitar conversión de zona horaria
   const groupedIncomes = filteredIncomes.reduce((groups, income) => {
-    const date = new Date(income.date).toDateString()
-    if (!groups[date]) {
-      groups[date] = []
+    const incDate = new Date(income.date)
+    // Crear clave usando año-mes-día en UTC para evitar problemas de zona horaria
+    const dateKey = `${incDate.getUTCFullYear()}-${String(incDate.getUTCMonth() + 1).padStart(2, '0')}-${String(incDate.getUTCDate()).padStart(2, '0')}`
+    if (!groups[dateKey]) {
+      groups[dateKey] = []
     }
-    groups[date].push(income)
+    groups[dateKey].push(income)
     return groups
   }, {} as Record<string, Income[]>)
 
@@ -252,23 +323,40 @@ export default function IncomesPage() {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
   }
 
-  const monthName = currentMonth.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
+  const monthName = currentMonth.toLocaleDateString('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Income Form Modal */}
+      {groupId && (
+        <IncomeForm
+          open={incomeFormOpen}
+          onOpenChange={setIncomeFormOpen}
+          groupId={groupId}
+          currency={currency}
+          onSuccess={() => {
+            fetchIncomes()
+            toast.success('Ingreso agregado', {
+              description: 'El ingreso se ha agregado correctamente',
+            })
+          }}
+        />
+      )}
+
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Ingresos</h1>
           <p className="text-slate-400 text-sm mt-1">Historial y análisis de tus ingresos</p>
         </div>
-        <Link
-          href="/dashboard?income=true"
+        <button
+          onClick={() => setIncomeFormOpen(true)}
           className="inline-flex items-center justify-center gap-2 gradient-primary text-white font-medium py-2.5 px-5 rounded-xl hover:shadow-lg hover:shadow-emerald-500/30 transition-all"
         >
           <Plus className="w-5 h-5" />
           Nuevo ingreso
-        </Link>
+        </button>
       </div>
 
       {/* Stats Cards */}
@@ -399,6 +487,94 @@ export default function IncomesPage() {
         </div>
       </div>
 
+      {/* Recurring Templates Section */}
+      {recurringTemplates.length > 0 && (
+        <div className="bg-slate-800/50 rounded-2xl border border-slate-700 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Repeat className="w-5 h-5 text-emerald-400" />
+              <h2 className="text-lg font-semibold text-white">Ingresos Recurrentes</h2>
+              <span className="text-sm text-slate-500">({recurringTemplates.length})</span>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {recurringTemplates.map(template => {
+              const config = template.recurringConfig
+              const isPaused = config?.isPaused || false
+              return (
+                <div
+                  key={template.id}
+                  className="bg-slate-900/50 rounded-xl border border-slate-700 p-4 hover:border-slate-600 transition-colors"
+                >
+                  <div className="flex items-start gap-4">
+                    {/* Icon */}
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      template.isPersonal ? 'bg-blue-500/20' : 'bg-purple-500/20'
+                    }`}>
+                      {template.isPersonal ? (
+                        <User className="w-6 h-6 text-blue-400" />
+                      ) : (
+                        <Users className="w-6 h-6 text-purple-400" />
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-white font-medium">
+                          {template.description || 'Ingreso recurrente'}
+                        </p>
+                        {isPaused && (
+                          <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full">
+                            Pausado
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-slate-400 mb-2">
+                        <span>{formatCurrency(Number(template.amount), currency)}</span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Repeat className="w-3 h-3" />
+                          {formatRecurrenceConfig(config)}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {template.creator.name || template.creator.email.split('@')[0]}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleTogglePause(template)}
+                        disabled={pausingTemplate === template.id}
+                        className="p-2 hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+                        title={isPaused ? 'Reanudar' : 'Pausar'}
+                      >
+                        {pausingTemplate === template.id ? (
+                          <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                        ) : isPaused ? (
+                          <Play className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Pause className="w-4 h-4 text-amber-400" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(template.id)}
+                        className="p-2 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Income list */}
       <div className="space-y-6">
         {loading ? (
@@ -431,7 +607,8 @@ export default function IncomesPage() {
                     {new Date(date).toLocaleDateString('es-CL', { 
                       weekday: 'long', 
                       day: 'numeric', 
-                      month: 'long' 
+                      month: 'long',
+                      timeZone: 'UTC', // Formatear en UTC para evitar conversión a hora local
                     })}
                   </h3>
                   <span className="text-sm font-bold text-emerald-400">
@@ -441,39 +618,54 @@ export default function IncomesPage() {
 
                 {/* Incomes */}
                 <div className="bg-slate-800/50 rounded-2xl border border-slate-700 divide-y divide-slate-700/50 overflow-hidden">
-                  {dayIncomes.map(income => (
-                    <div 
-                      key={income.id}
-                      className="p-4 hover:bg-slate-700/30 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                          income.isPersonal ? 'bg-blue-500/20' : 'bg-purple-500/20'
-                        }`}>
-                          {income.isPersonal ? (
-                            <User className="w-5 h-5 text-blue-400" />
-                          ) : (
-                            <Users className="w-5 h-5 text-purple-400" />
+                  {dayIncomes.map(income => {
+                    const isOwner = currentUserId === income.creator.id
+                    return (
+                      <div 
+                        key={income.id}
+                        className="p-4 hover:bg-slate-700/30 transition-colors group"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            income.isPersonal ? 'bg-blue-500/20' : 'bg-purple-500/20'
+                          }`}>
+                            {income.isPersonal ? (
+                              <User className="w-5 h-5 text-blue-400" />
+                            ) : (
+                              <Users className="w-5 h-5 text-purple-400" />
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white font-medium truncate">
+                              {income.description || 'Ingreso'}
+                            </p>
+                            <p className="text-sm text-slate-500">
+                              {income.isPersonal ? 'Personal' : 'Grupal'} • {income.creator.name || income.creator.email.split('@')[0]}
+                            </p>
+                          </div>
+                          
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-emerald-400">
+                              +{formatCurrency(Number(income.amount), currency)}
+                            </p>
+                          </div>
+
+                          {/* Actions (solo si es owner) */}
+                          {isOwner && (
+                            <div className="flex items-center gap-1">
+                              <button 
+                                onClick={() => setDeleteConfirm(income.id)}
+                                className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           )}
                         </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white font-medium truncate">
-                            {income.description || 'Ingreso'}
-                          </p>
-                          <p className="text-sm text-slate-500">
-                            {income.isPersonal ? 'Personal' : 'Grupal'} • {income.creator.name || income.creator.email.split('@')[0]}
-                          </p>
-                        </div>
-                        
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-emerald-400">
-                            +{formatCurrency(Number(income.amount), currency)}
-                          </p>
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -528,10 +720,14 @@ export default function IncomesPage() {
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
           <div className="relative bg-slate-900 rounded-2xl border border-slate-700 p-6 max-w-sm mx-4">
             <h3 className="text-lg font-semibold text-white mb-2">
-              ¿Eliminar recurrencia?
+              {recurringTemplates.some(t => t.id === deleteConfirm)
+                ? '¿Eliminar recurrencia?'
+                : '¿Eliminar ingreso?'}
             </h3>
             <p className="text-slate-400 text-sm mb-6">
-              Esto detendrá la generación de futuras transacciones. Las transacciones ya generadas no se eliminarán.
+              {recurringTemplates.some(t => t.id === deleteConfirm)
+                ? 'Esto detendrá la generación de futuras transacciones. Las transacciones ya generadas no se eliminarán.'
+                : 'Esta acción no se puede deshacer. El ingreso será eliminado permanentemente.'}
             </p>
             <div className="flex gap-3">
               <button
@@ -542,7 +738,13 @@ export default function IncomesPage() {
                 Cancelar
               </button>
               <button
-                onClick={() => handleDeleteTemplate(deleteConfirm)}
+                onClick={() => {
+                  if (recurringTemplates.some(t => t.id === deleteConfirm)) {
+                    handleDeleteTemplate(deleteConfirm)
+                  } else {
+                    handleDeleteIncome(deleteConfirm)
+                  }
+                }}
                 className="flex-1 py-2.5 px-4 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-all disabled:opacity-50"
                 disabled={deleting}
               >
@@ -553,5 +755,6 @@ export default function IncomesPage() {
         </div>
       )}
     </div>
+    </>
   )
 }

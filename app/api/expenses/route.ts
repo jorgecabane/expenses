@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser, canUserAccessGroup, canUserEditCategory } from '@/lib/auth'
 import { createExpense, getExpenses } from '@/lib/expenses'
 import { prisma } from '@/lib/prisma'
+import { parseLocalDate } from '@/lib/utils'
 
 // GET - Obtener gastos
 export async function GET(request: NextRequest) {
@@ -105,12 +106,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Crear el gasto
+    const parsedDate = date ? parseLocalDate(date) : new Date()
+    
     const expense = await createExpense(
       groupId,
       categoryId,
       parseFloat(amount),
       description || null,
-      date ? new Date(date) : new Date(),
+      parsedDate,
       user.id,
       isRecurring,
       recurringConfig

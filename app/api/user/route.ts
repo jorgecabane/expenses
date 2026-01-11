@@ -17,6 +17,7 @@ export async function GET() {
         name: true,
         email: true,
         avatarUrl: true,
+        activeGroupId: true,
       },
     })
 
@@ -46,18 +47,38 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name } = body
+    const { name, activeGroupId } = body
+
+    const updateData: any = {}
+    if (name !== undefined) updateData.name = name || null
+    if (activeGroupId !== undefined) {
+      // Verificar que el usuario tenga acceso al grupo antes de guardarlo
+      if (activeGroupId) {
+        const membership = await prisma.groupMember.findFirst({
+          where: {
+            userId: user.id,
+            groupId: activeGroupId,
+          },
+        })
+        if (!membership) {
+          return NextResponse.json(
+            { error: 'No tienes acceso a este grupo' },
+            { status: 403 }
+          )
+        }
+      }
+      updateData.activeGroupId = activeGroupId || null
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: {
-        name: name || null,
-      },
+      data: updateData,
       select: {
         id: true,
         name: true,
         email: true,
         avatarUrl: true,
+        activeGroupId: true,
       },
     })
 

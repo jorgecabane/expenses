@@ -13,8 +13,14 @@ export default async function ExpensesPage() {
     redirect('/login')
   }
 
-  // Obtener el grupo activo del usuario
-  const membership = await prisma.groupMember.findFirst({
+  // Obtener el usuario con su grupo activo
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { activeGroupId: true },
+  })
+
+  // Obtener todos los grupos del usuario
+  const memberships = await prisma.groupMember.findMany({
     where: { userId: user.id },
     include: {
       group: {
@@ -29,11 +35,23 @@ export default async function ExpensesPage() {
     },
   })
 
-  if (!membership) {
+  if (memberships.length === 0) {
     redirect('/dashboard/setup')
   }
 
-  const activeGroup = membership.group
+  // Buscar el grupo activo en los miembros del usuario
+  let activeGroup = memberships.find(m => m.group.id === dbUser?.activeGroupId)?.group
+  if (!activeGroup) {
+    // Si no se encuentra el grupo activo guardado o no existe, usar el primero
+    activeGroup = memberships[0].group
+    // Guardar el primer grupo como activo si no hay uno guardado
+    if (!dbUser?.activeGroupId) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { activeGroupId: activeGroup.id },
+      })
+    }
+  }
 
   // Obtener todos los gastos del grupo (últimos 3 meses por defecto)
   // Excluir templates recurrentes (solo mostrar transacciones generadas)
@@ -138,10 +156,39 @@ export default async function ExpensesPage() {
   // Calcular totales
   const totalExpenses = expensesData.reduce((acc, exp) => acc + exp.amount, 0)
   
-  // Por mes actual
+  // Por mes actual usando UTC para evitar problemas de zona horaria
   const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const thisMonthExpenses = expensesData.filter(exp => new Date(exp.date) >= startOfMonth)
+  const currentYear = now.getUTCFullYear()
+  const currentMonth = now.getUTCMonth()
+  const startOfMonth = new Date(Date.UTC(currentYear, currentMonth, 1))
+  const endOfMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0, 23, 59, 59, 999))
+  
+  const thisMonthExpenses = expensesData.filter(exp => {
+    const expDate = new Date(exp.date)
+    // Comparar usando UTC para evitar problemas de zona horaria
+    const expYear = expDate.getUTCFullYear()
+    const expMonth = expDate.getUTCMonth()
+    const expDay = expDate.getUTCDate()
+    const startYear = startOfMonth.getUTCFullYear()
+    const startMonth = startOfMonth.getUTCMonth()
+    const startDay = startOfMonth.getUTCDate()
+    const endYear = endOfMonth.getUTCFullYear()
+    const endMonth = endOfMonth.getUTCMonth()
+    const endDay = endOfMonth.getUTCDate()
+    
+    // Verificar si la fecha está en el rango usando comparación UTC
+    const isInRange = (
+      expYear > startYear || 
+      (expYear === startYear && expMonth > startMonth) ||
+      (expYear === startYear && expMonth === startMonth && expDay >= startDay)
+    ) && (
+      expYear < endYear ||
+      (expYear === endYear && expMonth < endMonth) ||
+      (expYear === endYear && expMonth === endMonth && expDay <= endDay)
+    )
+    
+    return isInRange
+  })
   const thisMonthTotal = thisMonthExpenses.reduce((acc, exp) => acc + exp.amount, 0)
 
   return (

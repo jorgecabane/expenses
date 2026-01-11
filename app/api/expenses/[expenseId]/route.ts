@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { parseLocalDate } from '@/lib/utils'
 
 // DELETE - Eliminar un gasto
 export async function DELETE(
@@ -147,7 +148,7 @@ export async function PATCH(
         ...(amount !== undefined && { amount }),
         ...(description !== undefined && { description }),
         ...(categoryId !== undefined && { categoryId }),
-        ...(date !== undefined && { date: new Date(date) }),
+        ...(date !== undefined && { date: parseLocalDate(date) }),
         ...(isRecurring !== undefined && { isRecurring }),
         ...(recurringConfig !== undefined && { recurringConfig: recurringConfig as any }),
       },

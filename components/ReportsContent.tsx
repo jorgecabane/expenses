@@ -162,7 +162,7 @@ export default function ReportsContent({
         </div>
 
         {/* Promedio mensual */}
-        <div className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl p-5 border border-primary/30">
+        <div className="bg-gradient-to-br from-emerald-500/20 to-purple-500/20 rounded-2xl p-5 border border-emerald-500/30">
           <div className="flex items-center justify-between mb-3">
             <span className="text-slate-300 text-sm">Gasto promedio</span>
             <div className="p-2 bg-white/10 rounded-lg">

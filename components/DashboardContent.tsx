@@ -66,7 +66,9 @@ interface DashboardContentProps {
 }
 
 function getPocketStatus(spent: number, limit: number) {
+  if (limit === 0) return { status: 'healthy', color: 'text-emerald-400', bgColor: 'bg-emerald-500', label: 'Todo bien' }
   const percentage = (spent / limit) * 100
+  if (spent >= limit) return { status: 'critical', color: 'text-red-400', bgColor: 'bg-red-500', label: 'Límite excedido' }
   if (percentage >= 90) return { status: 'critical', color: 'text-red-400', bgColor: 'bg-red-500', label: '¡Casi al límite!' }
   if (percentage >= 70) return { status: 'warning', color: 'text-amber-400', bgColor: 'bg-amber-500', label: 'Ten cuidado' }
   return { status: 'healthy', color: 'text-emerald-400', bgColor: 'bg-emerald-500', label: 'Todo bien' }
@@ -139,6 +141,14 @@ export default function DashboardContent({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>()
   const searchParams = useSearchParams()
   const router = useRouter()
+  
+  // Actualizar estado cuando cambian los props (especialmente cuando cambia groupId)
+  useEffect(() => {
+    setPockets(initialPockets)
+    setRecentTransactions(initialTransactions)
+    setTotalSpent(initialTotalSpent)
+    setTotalIncome(initialTotalIncome)
+  }, [groupId, initialPockets, initialTransactions, initialTotalSpent, initialTotalIncome])
   
   // Calcular valores derivados
   const remainingBudget = totalLimit - totalSpent

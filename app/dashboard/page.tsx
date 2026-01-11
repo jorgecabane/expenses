@@ -78,8 +78,25 @@ export default async function DashboardPage() {
     return <EmptyDashboard userName={userName} />
   }
 
-  // Obtener el grupo activo (por ahora el primero)
-  const activeGroup = memberships[0].group
+  // Obtener el grupo activo del usuario desde la base de datos
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { activeGroupId: true },
+  })
+  
+  // Buscar el grupo activo en los miembros del usuario
+  let activeGroup = memberships.find(m => m.group.id === dbUser?.activeGroupId)?.group
+  if (!activeGroup) {
+    // Si no se encuentra el grupo activo guardado o no existe, usar el primero
+    activeGroup = memberships[0].group
+    // Guardar el primer grupo como activo si no hay uno guardado
+    if (!dbUser?.activeGroupId) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { activeGroupId: activeGroup.id },
+      })
+    }
+  }
   
   // Obtener el mes actual
   const now = new Date()

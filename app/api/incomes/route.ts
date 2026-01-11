@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser, canUserAccessGroup } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { parseLocalDate } from '@/lib/utils'
 
 // GET - Obtener ingresos
 export async function GET(request: NextRequest) {
@@ -35,12 +36,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Si no se especifica mes/año, usar el mes actual
+    // Usar UTC para evitar problemas de zona horaria
     const now = new Date()
-    const targetMonth = month ? parseInt(month) : now.getMonth() + 1
-    const targetYear = year ? parseInt(year) : now.getFullYear()
+    const targetMonth = month ? parseInt(month) : now.getUTCMonth() + 1
+    const targetYear = year ? parseInt(year) : now.getUTCFullYear()
     
-    const startDate = new Date(targetYear, targetMonth - 1, 1)
-    const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59)
+    // Crear fechas en UTC: primer día del mes y último día del mes a medianoche UTC
+    const startDate = new Date(Date.UTC(targetYear, targetMonth - 1, 1))
+    // Último día del mes: usar el día 0 del mes siguiente (que es el último día del mes actual)
+    const endDate = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999))
+    
     where.date = {
       gte: startDate,
       lte: endDate,
@@ -134,13 +139,57 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Si es recurrente, crear el template Y la transacción inicial
+    if (isRecurring && recurringConfig) {
+      const incomeDate = date ? parseLocalDate(date) : new Date()
+      
+      // Crear el template recurrente
+      const template = await prisma.income.create({
+        data: {
+          groupId,
+          userId: type === 'personal' ? user.id : null,
+          amount: amount,
+          description: description || null,
+          date: incomeDate,
+          createdBy: user.id,
+          isRecurring: true,
+          recurringConfig: recurringConfig,
+        },
+        include: {
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      })
+
+      // Crear la transacción inicial para la fecha seleccionada
+      await prisma.income.create({
+        data: {
+          groupId,
+          userId: type === 'personal' ? user.id : null,
+          amount: amount,
+          description: description || null,
+          date: incomeDate,
+          createdBy: user.id,
+          isRecurring: false, // Esta es la transacción generada, no el template
+        },
+      })
+
+      return NextResponse.json({ income: template }, { status: 201 })
+    }
+
+    // Si no es recurrente, crear solo la transacción normal
     const income = await prisma.income.create({
       data: {
         groupId,
         userId: type === 'personal' ? user.id : null,
         amount: amount, // Prisma convierte automáticamente a Decimal
         description: description || null,
-        date: date ? new Date(date) : new Date(),
+        date: date ? parseLocalDate(date) : new Date(),
         createdBy: user.id,
         isRecurring: isRecurring || false,
         recurringConfig: recurringConfig || null,

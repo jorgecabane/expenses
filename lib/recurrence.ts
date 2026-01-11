@@ -302,11 +302,12 @@ export function shouldGenerateTransaction(
   // Si está pausado, no generar
   if (config.isPaused) return false
   
-  const startDate = new Date(config.startDate)
+  // Parsear startDate en hora local para evitar problemas UTC
+  const [year, month, day] = config.startDate.split('T')[0].split('-').map(Number)
+  const start = new Date(year, month - 1, day)
   const targetDate = checkDate || new Date()
   
   // Normalizar fechas a medianoche para comparaciones
-  const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
   const target = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
   
   // Verificar condiciones de fin

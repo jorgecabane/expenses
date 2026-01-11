@@ -126,7 +126,8 @@ export default function ExpenseForm({
           categoryId,
           amount: parseFloat(amount),
           description: description || null,
-          date: new Date(date).toISOString(),
+          // Enviar solo la fecha en formato YYYY-MM-DD para evitar problemas UTC
+          date: date,
           isRecurring: !!recurringConfig,
           recurringConfig: recurringConfig || null,
         }),
@@ -393,7 +394,11 @@ export default function ExpenseForm({
       <RecurrenceModal
         open={showRecurrenceModal}
         onOpenChange={setShowRecurrenceModal}
-        selectedDate={new Date(date)}
+        selectedDate={(() => {
+          // Parsear la fecha en formato YYYY-MM-DD y crear Date en hora local
+          const [year, month, day] = date.split('-').map(Number)
+          return new Date(year, month - 1, day)
+        })()}
         value={recurringConfig}
         onSave={(config) => {
           setRecurringConfig(config)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { shouldGenerateTransaction, getNextRecurrenceDate } from '@/lib/recurrence'
 import type { RecurringConfig } from '@/lib/recurrence'
+import { parseLocalDate } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
               amount: expense.amount,
               description: expense.description,
               date: {
-                gte: new Date(config.startDate),
+                gte: parseLocalDate(config.startDate),
               },
             },
           })
@@ -200,7 +201,7 @@ export async function GET(request: NextRequest) {
               amount: income.amount,
               description: income.description,
               date: {
-                gte: new Date(config.startDate),
+                gte: parseLocalDate(config.startDate),
               },
             },
           })
