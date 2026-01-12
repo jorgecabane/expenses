@@ -98,15 +98,30 @@ export default async function DashboardPage() {
     }
   }
   
-  // Obtener el mes actual
+  // Obtener el mes actual usando UTC para evitar problemas de zona horaria
   const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  const daysInMonth = endOfMonth.getDate()
-  const currentDay = now.getDate()
+  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const endOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999))
+  const daysInMonth = endOfMonth.getUTCDate()
+  const currentDay = now.getUTCDate()
   const daysRemaining = daysInMonth - currentDay
 
-  // Obtener gastos del mes actual
+  // Obtener gastos del mes actual (sin límite para calcular correctamente los bolsillos)
+  const allExpenses = await prisma.expense.findMany({
+    where: {
+      groupId: activeGroup.id,
+      date: {
+        gte: startOfMonth,
+        lte: endOfMonth,
+      },
+      isRecurring: false, // Solo transacciones generadas, no templates
+    },
+    include: {
+      category: true,
+    },
+  })
+
+  // Obtener solo los primeros 10 gastos para mostrar en transacciones recientes
   const expenses = await prisma.expense.findMany({
     where: {
       groupId: activeGroup.id,
@@ -114,6 +129,7 @@ export default async function DashboardPage() {
         gte: startOfMonth,
         lte: endOfMonth,
       },
+      isRecurring: false, // Solo transacciones generadas, no templates
     },
     include: {
       category: true,
@@ -132,7 +148,7 @@ export default async function DashboardPage() {
     take: 10,
   })
 
-  // Obtener ingresos del mes actual
+  // Obtener ingresos del mes actual usando UTC
   const incomes = await prisma.income.findMany({
     where: {
       groupId: activeGroup.id,
@@ -140,13 +156,14 @@ export default async function DashboardPage() {
         gte: startOfMonth,
         lte: endOfMonth,
       },
+      isRecurring: false, // Solo transacciones generadas, no templates
     },
   })
   const totalIncome = incomes.reduce((acc, inc) => acc + Number(inc.amount), 0)
 
-  // Calcular gastos por categoría
+  // Calcular gastos por categoría usando TODOS los gastos del mes (no solo los 10 recientes)
   const expensesByCategory: Record<string, number> = {}
-  expenses.forEach(exp => {
+  allExpenses.forEach(exp => {
     const catId = exp.categoryId
     expensesByCategory[catId] = (expensesByCategory[catId] || 0) + Number(exp.amount)
   })
