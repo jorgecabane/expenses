@@ -102,6 +102,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Obtener información completa del usuario que invita
+    const inviter = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    })
+
     // Verificar que el email no esté ya en el grupo
     const group = await prisma.familyGroup.findUnique({
       where: { id: groupId },
@@ -153,24 +163,124 @@ export async function POST(request: NextRequest) {
     // Enviar email si se solicita
     if (sendEmail) {
       try {
+        const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/invite/${token}`
+        const inviterName = inviter?.name || inviter?.email?.split('@')[0] || 'Un usuario'
+        const inviterEmail = inviter?.email || user.email
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        
+        // Versión de texto plano
+        const textVersion = `
+¡Hola!
+
+${inviterName} te invitó a unirte al espacio "${group.name}" en Bolsillos.
+
+Bolsillos es una aplicación para gestionar tus gastos e ingresos de forma sencilla y organizada.
+
+Para aceptar la invitación, haz clic en el siguiente enlace:
+${inviteUrl}
+
+Este enlace expira en 7 días.
+
+Si no esperabas este correo, puedes ignorarlo de forma segura.
+
+---
+Bolsillos - Organiza tus finanzas
+${appUrl}
+        `.trim()
+
+        // Versión HTML profesional
+        const htmlVersion = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Invitación a ${group.name}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f3f4f6;">
+    <tr>
+      <td style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border-collapse: collapse;">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 40px 40px 30px; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 12px 12px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+                💰 Bolsillos
+              </h1>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="margin: 0 0 20px; color: #111827; font-size: 24px; font-weight: 600; line-height: 1.3;">
+                ¡Hola! 👋
+              </h2>
+              
+              <p style="margin: 0 0 20px; color: #374151; font-size: 16px; line-height: 1.6;">
+                <strong style="color: #111827;">${inviterName}</strong> te invitó a unirte al espacio <strong style="color: #10b981;">"${group.name}"</strong> en Bolsillos.
+              </p>
+              
+              <p style="margin: 0 0 30px; color: #374151; font-size: 16px; line-height: 1.6;">
+                Bolsillos es una aplicación para gestionar tus gastos e ingresos de forma sencilla y organizada. Podrás compartir gastos, establecer límites mensuales y mantener un control total de tus finanzas.
+              </p>
+              
+              <!-- CTA Button -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 30px 0;">
+                <tr>
+                  <td style="text-align: center;">
+                    <a href="${inviteUrl}" 
+                       style="display: inline-block; padding: 16px 32px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);">
+                      Aceptar invitación →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Alternative link -->
+              <p style="margin: 30px 0 0; color: #6b7280; font-size: 14px; line-height: 1.5; text-align: center;">
+                O copia y pega este enlace en tu navegador:<br>
+                <a href="${inviteUrl}" style="color: #10b981; text-decoration: underline; word-break: break-all;">${inviteUrl}</a>
+              </p>
+              
+              <!-- Expiration notice -->
+              <div style="margin: 30px 0 0; padding: 16px; background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
+                <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.5;">
+                  ⏰ <strong>Importante:</strong> Este enlace expira en 7 días.
+                </p>
+              </div>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 30px 40px; background-color: #f9fafb; border-top: 1px solid #e5e7eb; border-radius: 0 0 12px 12px;">
+              <p style="margin: 0 0 10px; color: #6b7280; font-size: 14px; line-height: 1.5; text-align: center;">
+                Si no esperabas este correo, puedes ignorarlo de forma segura.
+              </p>
+              <p style="margin: 0; color: #9ca3af; font-size: 12px; line-height: 1.5; text-align: center;">
+                © ${new Date().getFullYear()} Bolsillos. Todos los derechos reservados.<br>
+                <a href="${appUrl}" style="color: #10b981; text-decoration: none;">${appUrl}</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+        `.trim()
+
         await resend.emails.send({
           from: process.env.EMAIL_FROM || 'Bolsillos <onboarding@resend.dev>',
           to: email,
-          subject: `${group.name} te invitó a unirte en Bolsillos`,
-          html: `
-            <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #10B981;">¡Hola!</h1>
-              <p>${user.email} te invitó a unirte al grupo <strong>${group.name}</strong> en Bolsillos.</p>
-              <p>Haz click en el botón para aceptar la invitación:</p>
-              <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/invite/${token}" 
-                 style="display: inline-block; padding: 12px 24px; background-color: #10B981; color: white; text-decoration: none; border-radius: 8px; margin: 20px 0;">
-                Aceptar invitación
-              </a>
-              <p style="color: #6B7280; font-size: 14px; margin-top: 20px;">
-                Este link expira en 7 días.
-              </p>
-            </div>
-          `,
+          subject: `${inviterName} te invitó a "${group.name}" en Bolsillos`,
+          text: textVersion,
+          html: htmlVersion,
+          replyTo: inviterEmail,
         })
       } catch (emailError) {
         console.error('Error sending email:', emailError)

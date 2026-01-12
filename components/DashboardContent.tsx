@@ -13,10 +13,18 @@ import {
   Users,
   Wallet,
   PiggyBank,
-  RefreshCw
+  RefreshCw,
+  Info
 } from 'lucide-react'
 import ExpenseForm from './ExpenseForm'
 import IncomeForm from './IncomeForm'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog'
 
 interface Pocket {
   id: string
@@ -139,6 +147,7 @@ export default function DashboardContent({
   const [expenseFormOpen, setExpenseFormOpen] = useState(false)
   const [incomeFormOpen, setIncomeFormOpen] = useState(false)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>()
+  const [dailySuggestedModalOpen, setDailySuggestedModalOpen] = useState(false)
   const searchParams = useSearchParams()
   const router = useRouter()
   
@@ -156,6 +165,12 @@ export default function DashboardContent({
   const dailySuggested = daysRemaining > 0 ? Math.round(remainingBudget / daysRemaining) : 0
   const balance = totalIncome - totalSpent
   const incomeUsedPercentage = totalIncome > 0 ? (totalSpent / totalIncome) * 100 : 0
+  
+  // Calcular diario sugerido basado en ingresos (si existen)
+  const remainingIncome = totalIncome - totalSpent
+  const dailySuggestedByIncome = daysRemaining > 0 && totalIncome > 0 
+    ? Math.round(remainingIncome / daysRemaining) 
+    : null
 
   // Función para refrescar datos sin recargar la página
   const refreshData = useCallback(async () => {
@@ -272,6 +287,132 @@ export default function DashboardContent({
         }}
       />
 
+      {/* Daily Suggested Info Modal */}
+      <Dialog open={dailySuggestedModalOpen} onOpenChange={setDailySuggestedModalOpen}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-700 flex-shrink-0">
+            <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+              <PiggyBank className="w-5 h-5 text-emerald-400" />
+              Diario sugerido
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 mt-1">
+              Cálculo basado en tu presupuesto y días restantes del mes
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="px-6 py-4 space-y-6 overflow-y-auto flex-1">
+            {/* Cálculo basado en presupuesto */}
+            <div className="bg-slate-700/50 rounded-xl p-4 border border-slate-600">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-slate-300">Según Presupuesto</h3>
+                <span className="text-xs text-slate-500">Basado en bolsillos</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Presupuesto mensual:</span>
+                  <span className="text-white font-medium">{formatCurrency(totalLimit, groupCurrency)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Gastado este mes:</span>
+                  <span className="text-red-400 font-medium">-{formatCurrency(totalSpent, groupCurrency)}</span>
+                </div>
+                <div className="border-t border-slate-600 pt-2 mt-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Restante:</span>
+                    <span className="text-emerald-400 font-medium">{formatCurrency(remainingBudget, groupCurrency)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-slate-400">Días restantes:</span>
+                    <span className="text-white font-medium">{daysRemaining}</span>
+                  </div>
+                </div>
+                <div className="border-t border-emerald-500/30 pt-3 mt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-emerald-400 font-semibold">Diario sugerido:</span>
+                    <span className="text-2xl font-bold text-emerald-400">
+                      {formatCurrency(dailySuggested, groupCurrency)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Cálculo basado en ingresos (si existen) */}
+            {totalIncome > 0 && (
+              <div className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/30">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-blue-300">Según Ingresos</h3>
+                  <span className="text-xs text-blue-400/70">Alternativa</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Ingresos del mes:</span>
+                    <span className="text-white font-medium">{formatCurrency(totalIncome, groupCurrency)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Gastado este mes:</span>
+                    <span className="text-red-400 font-medium">-{formatCurrency(totalSpent, groupCurrency)}</span>
+                  </div>
+                  <div className="border-t border-blue-500/30 pt-2 mt-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">Restante:</span>
+                      <span className="text-blue-400 font-medium">{formatCurrency(remainingIncome, groupCurrency)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-slate-400">Días restantes:</span>
+                      <span className="text-white font-medium">{daysRemaining}</span>
+                    </div>
+                  </div>
+                  <div className="border-t border-blue-500/30 pt-3 mt-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-blue-400 font-semibold">Diario sugerido:</span>
+                      <span className="text-2xl font-bold text-blue-400">
+                        {dailySuggestedByIncome !== null ? formatCurrency(dailySuggestedByIncome, groupCurrency) : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Nota informativa */}
+            {totalIncome === 0 && (
+              <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
+                <p className="text-xs text-slate-400 text-center">
+                  💡 Registra ingresos para ver una sugerencia alternativa basada en tus ingresos reales
+                </p>
+              </div>
+            )}
+
+            {/* Diferencia si ambos existen */}
+            {totalIncome > 0 && dailySuggestedByIncome !== null && (
+              <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Diferencia:</span>
+                  <span className={`text-sm font-semibold ${
+                    Math.abs(dailySuggested - dailySuggestedByIncome) < dailySuggested * 0.1
+                      ? 'text-emerald-400'
+                      : dailySuggestedByIncome > dailySuggested
+                        ? 'text-blue-400'
+                        : 'text-amber-400'
+                  }`}>
+                    {dailySuggestedByIncome > dailySuggested ? '+' : ''}
+                    {formatCurrency(dailySuggestedByIncome - dailySuggested, groupCurrency)}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1 text-center">
+                  {dailySuggestedByIncome > dailySuggested 
+                    ? 'Tienes más margen según tus ingresos' 
+                    : dailySuggestedByIncome < dailySuggested
+                      ? 'Tu presupuesto es más conservador que tus ingresos'
+                      : 'Ambos cálculos coinciden'}
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="space-y-8">
         {/* Header with stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -327,28 +468,39 @@ export default function DashboardContent({
           </div>
 
           {/* Sugerencia diaria */}
-          <div className="bg-gradient-to-br from-emerald-500/20 to-purple-500/20 rounded-2xl p-5 border border-emerald-500/30">
+          <button
+            onClick={() => setDailySuggestedModalOpen(true)}
+            className="bg-gradient-to-br from-emerald-500/20 to-purple-500/20 rounded-2xl p-5 border border-emerald-500/30 hover:border-emerald-500/50 transition-all text-left w-full group cursor-pointer"
+          >
             <div className="flex items-center justify-between mb-3">
               <span className="text-slate-300 text-sm font-medium">Diario sugerido</span>
-              <div className="p-2 bg-white/10 rounded-lg">
+              <div className="p-2 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors">
                 <PiggyBank className="w-4 h-4 text-white" />
               </div>
             </div>
             <p className="text-xl sm:text-2xl font-bold text-white">
               <ResponsiveCurrency amount={dailySuggested} currency={groupCurrency} />
             </p>
-            <p className="text-xs text-slate-400 mt-1">
-              quedan {daysRemaining} días
+            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+              <Info className="w-3 h-3" />
+              {daysRemaining} días restantes
             </p>
-          </div>
+          </button>
         </div>
 
         {/* Main content grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Pockets */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">Mis bolsillos</h2>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-xl font-bold text-white">Mis bolsillos</h2>
+                {totalLimit > 0 && (
+                  <p className="text-sm text-slate-400 mt-0.5">
+                    Presupuesto mensual: <span className="text-emerald-400 font-semibold">{formatCurrency(totalLimit, groupCurrency)}</span>
+                  </p>
+                )}
+              </div>
               <Link 
                 href="/dashboard/pockets/new" 
                 className="flex items-center gap-2 text-emerald-400 text-sm font-medium hover:text-emerald-300 transition-colors"
