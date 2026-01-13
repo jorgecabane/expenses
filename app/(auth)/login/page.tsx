@@ -60,8 +60,8 @@ export default async function LoginPage({
           {/* Testimonial */}
           <div className="bg-white/5 rounded-2xl p-6 border border-white/10 max-w-md">
             <p className="text-white/80 italic mb-4">
-              "Desde que uso Bolsillos, finalmente sé a dónde va mi dinero. 
-              Es como tener un asistente financiero en el bolsillo."
+              &ldquo;Desde que uso Bolsillos, finalmente sé a dónde va mi dinero. 
+              Es como tener un asistente financiero en el bolsillo.&rdquo;
             </p>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full gradient-secondary flex items-center justify-center text-white font-bold">

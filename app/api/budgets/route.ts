@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     // Crear o actualizar presupuestos
     const results = await Promise.all(
-      allocations.map((allocation: any) =>
+      allocations.map((allocation: { categoryId: string; amount: number; userId?: string }) =>
         upsertMonthlyBudget(
           groupId,
           allocation.categoryId,

@@ -10,7 +10,13 @@ export async function getMonthlyBudgets(
   year: number = new Date().getFullYear(),
   userId?: string
 ) {
-  const where: any = {
+  const where: {
+    groupId: string
+    month: number
+    year: number
+    userId?: string | null
+    OR?: Array<{ userId: string | null }>
+  } = {
     groupId,
     month,
     year,
@@ -56,7 +62,7 @@ export async function upsertMonthlyBudget(
         month,
         year,
         userId: userId ?? null,
-      } as any, // Prisma type issue with nullable unique constraints
+        } as any, // Prisma type issue with nullable unique constraints
     },
   })
 
@@ -72,7 +78,7 @@ export async function upsertMonthlyBudget(
         month,
         year,
         userId: userId ?? null,
-      } as any, // Prisma type issue with nullable unique constraints
+        } as any, // Prisma type issue with nullable unique constraints
     },
     create: {
       groupId,

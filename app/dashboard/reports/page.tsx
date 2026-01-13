@@ -109,20 +109,22 @@ export default async function ReportsPage() {
   }
 
   // Sumar gastos por mes usando UTC
-  expenses.forEach((exp: { date: Date; amount: any }) => {
+  expenses.forEach((exp: { date: Date; amount: number | string | { toString: () => string; toNumber: () => number } }) => {
     const d = new Date(exp.date)
     const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`
     if (monthlyData[key]) {
-      monthlyData[key].expenses += Number(exp.amount)
+      const amount = typeof exp.amount === 'object' && 'toNumber' in exp.amount ? exp.amount.toNumber() : Number(exp.amount)
+      monthlyData[key].expenses += amount
     }
   })
 
   // Sumar ingresos por mes usando UTC
-  incomes.forEach((inc: { date: Date; amount: any }) => {
+  incomes.forEach((inc: { date: Date; amount: number | string | { toString: () => string; toNumber: () => number } }) => {
     const d = new Date(inc.date)
     const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`
     if (monthlyData[key]) {
-      monthlyData[key].income += Number(inc.amount)
+      const amount = typeof inc.amount === 'object' && 'toNumber' in inc.amount ? inc.amount.toNumber() : Number(inc.amount)
+      monthlyData[key].income += amount
     }
   })
 
@@ -135,7 +137,7 @@ export default async function ReportsPage() {
   const startOfMonth = new Date(Date.UTC(currentYear, currentMonth, 1))
   const endOfMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0, 23, 59, 59, 999))
   
-  const currentMonthExpenses = expenses.filter((exp: { date: Date; categoryId: string; amount: any }) => {
+  const currentMonthExpenses = expenses.filter((exp: { date: Date; categoryId: string; amount: number | string | { toString: () => string; toNumber: () => number } }) => {
     const expDate = new Date(exp.date)
     // Comparar usando UTC para evitar problemas de zona horaria
     const expYear = expDate.getUTCFullYear()
@@ -164,7 +166,7 @@ export default async function ReportsPage() {
   
   const byCategory: Record<string, { name: string; icon: string; color: string; amount: number }> = {}
   
-  currentMonthExpenses.forEach((exp: { categoryId: string; amount: any; category?: { name: string; icon: string | null; color: string | null } | null }) => {
+  currentMonthExpenses.forEach((exp: { categoryId: string; amount: number | string | { toString: () => string; toNumber: () => number }; category?: { name: string; icon: string | null; color: string | null } | null }) => {
     const catId = exp.categoryId
     if (!byCategory[catId]) {
       byCategory[catId] = {
@@ -174,14 +176,18 @@ export default async function ReportsPage() {
         amount: 0,
       }
     }
-    byCategory[catId].amount += Number(exp.amount)
+    const amount = typeof exp.amount === 'object' && 'toNumber' in exp.amount ? exp.amount.toNumber() : Number(exp.amount)
+    byCategory[catId].amount += amount
   })
 
   const categoryData = Object.values(byCategory)
     .sort((a: { amount: number }, b: { amount: number }) => b.amount - a.amount)
 
   // Calcular totales del mes actual usando UTC
-  const thisMonthExpenses = currentMonthExpenses.reduce((acc: number, exp: { amount: any }) => acc + Number(exp.amount), 0)
+  const thisMonthExpenses = currentMonthExpenses.reduce((acc: number, exp: { amount: number | string | { toString: () => string; toNumber: () => number } }) => {
+    const amount = typeof exp.amount === 'object' && 'toNumber' in exp.amount ? exp.amount.toNumber() : Number(exp.amount)
+    return acc + amount
+  }, 0)
   const filteredIncomes = incomes.filter((inc: { date: Date }) => {
     const incDate = new Date(inc.date)
     // Comparar usando UTC para evitar problemas de zona horaria
@@ -208,11 +214,20 @@ export default async function ReportsPage() {
     
     return isInRange
   })
-  const thisMonthIncomes = filteredIncomes.reduce((acc: number, inc: { amount: any }) => acc + Number(inc.amount), 0)
+  const thisMonthIncomes = filteredIncomes.reduce((acc: number, inc: { amount: number | string | { toString: () => string; toNumber: () => number } }) => {
+    const amount = typeof inc.amount === 'object' && 'toNumber' in inc.amount ? inc.amount.toNumber() : Number(inc.amount)
+    return acc + amount
+  }, 0)
 
   // Calcular totales de todos los tiempos
-  const totalExpenses = expenses.reduce((acc: number, exp: { amount: any }) => acc + Number(exp.amount), 0)
-  const totalIncomes = incomes.reduce((acc: number, inc: { amount: any }) => acc + Number(inc.amount), 0)
+  const totalExpenses = expenses.reduce((acc: number, exp: { amount: number | string | { toString: () => string; toNumber: () => number } }) => {
+    const amount = typeof exp.amount === 'object' && 'toNumber' in exp.amount ? exp.amount.toNumber() : Number(exp.amount)
+    return acc + amount
+  }, 0)
+  const totalIncomes = incomes.reduce((acc: number, inc: { amount: number | string | { toString: () => string; toNumber: () => number } }) => {
+    const amount = typeof inc.amount === 'object' && 'toNumber' in inc.amount ? inc.amount.toNumber() : Number(inc.amount)
+    return acc + amount
+  }, 0)
 
   // Calcular promedios
   const avgMonthlyExpenses = totalExpenses / 6

@@ -52,7 +52,18 @@ export async function GET(request: NextRequest) {
     })
 
     // Incluir el rol del usuario actual en cada grupo
-    const groups = memberships.map((m: { group: any; role: string }) => ({
+    const groups = memberships.map((m: {
+      group: {
+        id: string
+        name: string
+        currency: string
+        createdBy: string
+        createdAt: Date
+        updatedAt: Date
+        autoCreateExpensesFromReminders: boolean
+      }
+      role: string
+    }) => ({
       ...m.group,
       currentUserRole: m.role,
     }))

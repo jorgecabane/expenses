@@ -140,7 +140,7 @@ export default function RecurrenceCustomizer({
                         key={unit.value}
                         type="button"
                         onClick={() => {
-                          setIntervalUnit(unit.value as any)
+                          setIntervalUnit(unit.value as 'day' | 'week' | 'month' | 'year')
                           setIsUnitSelectOpen(false)
                         }}
                         className={`w-full text-left px-3 py-2 text-sm transition-colors ${
@@ -199,7 +199,7 @@ export default function RecurrenceCustomizer({
                   name="endType"
                   value="never"
                   checked={endType === 'never'}
-                  onChange={(e) => setEndType(e.target.value as any)}
+                  onChange={(e) => setEndType(e.target.value as 'never' | 'on_date' | 'after')}
                   className="w-4 h-4 text-emerald-500 focus:ring-emerald-500"
                 />
                 <span className="text-slate-300">Nunca</span>
@@ -211,7 +211,7 @@ export default function RecurrenceCustomizer({
                   name="endType"
                   value="on_date"
                   checked={endType === 'on_date'}
-                  onChange={(e) => setEndType(e.target.value as any)}
+                  onChange={(e) => setEndType(e.target.value as 'never' | 'on_date' | 'after')}
                   className="w-4 h-4 text-emerald-500 focus:ring-emerald-500"
                 />
                 <span className="text-slate-300">El</span>
@@ -230,7 +230,7 @@ export default function RecurrenceCustomizer({
                   name="endType"
                   value="after"
                   checked={endType === 'after'}
-                  onChange={(e) => setEndType(e.target.value as any)}
+                  onChange={(e) => setEndType(e.target.value as 'never' | 'on_date' | 'after')}
                   className="w-4 h-4 text-emerald-500 focus:ring-emerald-500"
                 />
                 <span className="text-slate-300">Después de</span>

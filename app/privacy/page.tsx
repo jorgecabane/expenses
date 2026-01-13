@@ -194,7 +194,7 @@ export default function PrivacyPage() {
             <p className="leading-relaxed">
               Podemos actualizar esta Política de Privacidad ocasionalmente. Te notificaremos sobre 
               cambios significativos mediante un aviso en la aplicación o por correo electrónico. 
-              La fecha de "Última actualización" al inicio de esta página indica cuándo se realizó 
+              La fecha de &ldquo;Última actualización&rdquo; al inicio de esta página indica cuándo se realizó 
               la última modificación.
             </p>
           </section>

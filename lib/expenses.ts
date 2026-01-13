@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { updateBudgetAfterExpense } from '@/lib/pockets'
 import { parseLocalDate } from '@/lib/utils'
@@ -13,7 +14,7 @@ export async function createExpense(
   date: Date | string,
   createdBy: string,
   isRecurring: boolean = false,
-  recurringConfig?: any
+  recurringConfig?: unknown
 ) {
   // Asegurar que date sea un Date en UTC a medianoche
   // Siempre parsear usando parseLocalDate para evitar problemas de zona horaria
@@ -91,7 +92,7 @@ export async function createExpense(
       date: expenseDate,
       createdBy,
       isRecurring,
-      recurringConfig: recurringConfig || null,
+      ...(recurringConfig ? { recurringConfig: recurringConfig as unknown as Prisma.InputJsonValue } : {}),
     },
   })
 
@@ -116,7 +117,16 @@ export async function getExpenses(
     limit?: number
   }
 ) {
-  const where: any = {
+  const where: {
+    groupId: string
+    date?: {
+      gte?: Date
+      lte?: Date
+    }
+    categoryId?: string
+    createdBy?: string
+    isRecurring?: boolean
+  } = {
     groupId,
   }
 

@@ -49,7 +49,10 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { name, activeGroupId } = body
 
-    const updateData: any = {}
+    const updateData: {
+      name?: string | null
+      activeGroupId?: string | null
+    } = {}
     if (name !== undefined) updateData.name = name || null
     if (activeGroupId !== undefined) {
       // Verificar que el usuario tenga acceso al grupo antes de guardarlo

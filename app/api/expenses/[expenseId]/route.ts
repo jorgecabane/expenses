@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseLocalDate } from '@/lib/utils'
@@ -150,7 +151,7 @@ export async function PATCH(
         ...(categoryId !== undefined && { categoryId }),
         ...(date !== undefined && { date: parseLocalDate(date) }),
         ...(isRecurring !== undefined && { isRecurring }),
-        ...(recurringConfig !== undefined && { recurringConfig: recurringConfig as any }),
+        ...(recurringConfig !== undefined && { recurringConfig: recurringConfig as unknown as Prisma.InputJsonValue }),
       },
       include: {
         category: true,

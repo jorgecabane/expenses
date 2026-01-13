@@ -78,10 +78,11 @@ export default function ProfilePage() {
       
       // Notificar al layout para que actualice el nombre
       window.dispatchEvent(new CustomEvent('userUpdated'))
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving profile:', error)
+      const message = error instanceof Error ? error.message : 'Ocurrió un error inesperado'
       toast.error('Error al guardar', {
-        description: error.message || 'Ocurrió un error inesperado',
+        description: message,
       })
     } finally {
       setSaving(false)

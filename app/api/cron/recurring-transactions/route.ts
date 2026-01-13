@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { shouldGenerateTransaction, getNextRecurrenceDate } from '@/lib/recurrence'
 import type { RecurringConfig } from '@/lib/recurrence'
@@ -133,7 +134,7 @@ export async function GET(request: NextRequest) {
         await prisma.expense.update({
           where: { id: expense.id },
           data: {
-            recurringConfig: updatedConfig as any,
+            recurringConfig: updatedConfig as unknown as Prisma.InputJsonValue,
           },
         })
       } catch (error) {
@@ -234,7 +235,7 @@ export async function GET(request: NextRequest) {
         await prisma.income.update({
           where: { id: income.id },
           data: {
-            recurringConfig: updatedConfig as any,
+            recurringConfig: updatedConfig as unknown as Prisma.InputJsonValue,
           },
         })
       } catch (error) {

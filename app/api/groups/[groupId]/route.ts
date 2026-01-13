@@ -95,7 +95,10 @@ export async function PATCH(
     const body = await request.json()
     const { name, currency } = body
 
-    const updateData: any = {}
+    const updateData: {
+      name?: string
+      currency?: string
+    } = {}
     if (name !== undefined) updateData.name = name
     if (currency !== undefined) updateData.currency = currency
 

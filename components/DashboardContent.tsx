@@ -186,7 +186,14 @@ export default function DashboardContent({
         const { expenses } = await expensesRes.json()
         
         // Actualizar transacciones recientes
-        const newTransactions = expenses.slice(0, 5).map((exp: any) => ({
+        const newTransactions = expenses.slice(0, 5).map((exp: {
+          id: string
+          description: string | null
+          amount: number | string
+          date: string
+          category?: { name: string; icon?: string | null } | null
+          creator?: { name: string | null; email: string } | null
+        }) => ({
           id: exp.id,
           description: exp.description || 'Sin descripción',
           amount: Number(exp.amount),
@@ -199,12 +206,12 @@ export default function DashboardContent({
         setRecentTransactions(newTransactions)
         
         // Calcular nuevo total gastado
-        const newTotalSpent = expenses.reduce((acc: number, exp: any) => acc + Number(exp.amount), 0)
+        const newTotalSpent = expenses.reduce((acc: number, exp: { amount: number | string }) => acc + Number(exp.amount), 0)
         setTotalSpent(newTotalSpent)
         
         // Actualizar gastos por categoría en pockets
         const expensesByCategory: Record<string, number> = {}
-        expenses.forEach((exp: any) => {
+        expenses.forEach((exp: { categoryId: string; amount: number | string }) => {
           expensesByCategory[exp.categoryId] = (expensesByCategory[exp.categoryId] || 0) + Number(exp.amount)
         })
         
@@ -216,7 +223,7 @@ export default function DashboardContent({
 
       if (incomesRes.ok) {
         const { incomes } = await incomesRes.json()
-        const newTotalIncome = incomes.reduce((acc: number, inc: any) => acc + Number(inc.amount), 0)
+        const newTotalIncome = incomes.reduce((acc: number, inc: { amount: number | string }) => acc + Number(inc.amount), 0)
         setTotalIncome(newTotalIncome)
       }
     } catch (error) {

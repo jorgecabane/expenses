@@ -110,7 +110,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-bold text-white mb-4">7. Limitación de Responsabilidad</h2>
             <p className="leading-relaxed mb-4">
-              Bolsillos se proporciona "tal cual" y "según disponibilidad". No garantizamos que:
+              Bolsillos se proporciona &ldquo;tal cual&rdquo; y &ldquo;según disponibilidad&rdquo;. No garantizamos que:
             </p>
             <ul className="list-disc list-inside space-y-2 ml-4">
               <li>El servicio esté libre de errores o interrupciones</li>

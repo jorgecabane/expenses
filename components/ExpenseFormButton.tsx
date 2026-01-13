@@ -5,9 +5,18 @@ import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
 import ExpenseForm from './ExpenseForm'
 
+interface Category {
+  id: string
+  name: string
+  icon: string | null
+  color: string | null
+  isPersonal: boolean
+  ownerId: string | null
+}
+
 interface ExpenseFormButtonProps {
   groupId: string
-  categories: any[]
+  categories: Category[]
 }
 
 export default function ExpenseFormButton({ groupId, categories }: ExpenseFormButtonProps) {

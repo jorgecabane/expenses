@@ -3,8 +3,24 @@
 import { format } from 'date-fns'
 import { Badge } from '@/components/ui/badge'
 
+interface Expense {
+  id: string
+  amount: number | { toNumber: () => number }
+  description: string
+  date: string
+  category: {
+    name: string
+    icon: string | null
+    isPersonal: boolean
+  }
+  creator: {
+    name: string | null
+    email: string
+  }
+}
+
 interface ExpenseListProps {
-  expenses: any[]
+  expenses: Expense[]
 }
 
 export default function ExpenseList({ expenses }: ExpenseListProps) {
@@ -55,7 +71,7 @@ export default function ExpenseList({ expenses }: ExpenseListProps) {
                 {new Intl.NumberFormat('es-AR', {
                   style: 'currency',
                   currency: 'ARS',
-                }).format(expense.amount.toNumber())}
+                }).format(typeof expense.amount === 'object' && 'toNumber' in expense.amount ? expense.amount.toNumber() : expense.amount)}
               </p>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { getCurrentUser, canUserAccessGroup } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseLocalDate } from '@/lib/utils'
@@ -31,7 +32,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const where: any = {
+    const where: {
+      groupId: string
+      date?: {
+        gte: Date
+        lte: Date
+      }
+    } = {
       groupId,
     }
 
@@ -73,28 +80,24 @@ export async function GET(request: NextRequest) {
 
     // Obtener templates recurrentes si se solicita
     const includeRecurring = searchParams.get('includeRecurring') === 'true'
-    let recurringTemplates: any[] = []
-    
-    if (includeRecurring) {
-      recurringTemplates = await prisma.income.findMany({
-        where: {
-          groupId,
-          isRecurring: true,
-        },
-        include: {
-          creator: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
+    const recurringTemplates = includeRecurring ? await prisma.income.findMany({
+      where: {
+        groupId,
+        isRecurring: true,
+      },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
           },
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      })
-    }
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    }) : []
 
     return NextResponse.json({ 
       incomes,
@@ -212,7 +215,7 @@ export async function POST(request: NextRequest) {
         date: date ? parseLocalDate(date) : new Date(),
         createdBy: user.id,
         isRecurring: isRecurring || false,
-        recurringConfig: recurringConfig || null,
+        ...(recurringConfig ? { recurringConfig: recurringConfig as unknown as Prisma.InputJsonValue } : {}),
       },
       include: {
         creator: {

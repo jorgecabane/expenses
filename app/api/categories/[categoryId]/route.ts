@@ -26,7 +26,14 @@ export async function PATCH(
     const body = await request.json()
     const { name, icon, color, isPersonal, monthlyLimit } = body
 
-    const updateData: any = {}
+    const updateData: {
+      name?: string
+      icon?: string | null
+      color?: string | null
+      isPersonal?: boolean
+      monthlyLimit?: number | null
+      ownerId?: string | null
+    } = {}
     if (name !== undefined) updateData.name = name
     if (icon !== undefined) updateData.icon = icon
     if (color !== undefined) updateData.color = color

@@ -35,7 +35,12 @@ export async function GET(request: NextRequest) {
     const goalMonth = month ? parseInt(month) : now.getMonth() + 1
     const goalYear = year ? parseInt(year) : now.getFullYear()
 
-    const where: any = {
+    const where: {
+      groupId: string
+      month?: number
+      year?: number
+      userId?: string | null
+    } = {
       groupId,
       month: goalMonth,
       year: goalYear,
@@ -177,7 +182,12 @@ export async function POST(request: NextRequest) {
           userId: goalUserId,
           month: goalMonth,
           year: goalYear,
-        } as any, // Prisma type issue with nullable unique constraints
+        } as {
+          groupId: string
+          month: number
+          year: number
+          userId: string
+        }, // Prisma type issue with nullable unique constraints - userId is required in the unique constraint
       },
       create: {
         groupId,

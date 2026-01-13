@@ -159,20 +159,32 @@ export default async function DashboardPage() {
       isRecurring: false, // Solo transacciones generadas, no templates
     },
   })
-  const totalIncome = incomes.reduce((acc: number, inc: { amount: any }) => acc + Number(inc.amount), 0)
+  const totalIncome = incomes.reduce((acc: number, inc: { amount: number | string | { toString: () => string; toNumber: () => number } }) => {
+    const amount = typeof inc.amount === 'object' && 'toNumber' in inc.amount ? inc.amount.toNumber() : Number(inc.amount)
+    return acc + amount
+  }, 0)
 
   // Calcular gastos por categoría usando TODOS los gastos del mes (no solo los 10 recientes)
   const expensesByCategory: Record<string, number> = {}
-  allExpenses.forEach((exp: { categoryId: string; amount: any }) => {
+  allExpenses.forEach((exp: { categoryId: string; amount: number | string | { toString: () => string; toNumber: () => number } }) => {
     const catId = exp.categoryId
-    expensesByCategory[catId] = (expensesByCategory[catId] || 0) + Number(exp.amount)
+    const amount = typeof exp.amount === 'object' && 'toNumber' in exp.amount ? exp.amount.toNumber() : Number(exp.amount)
+    expensesByCategory[catId] = (expensesByCategory[catId] || 0) + amount
   })
 
   // Preparar datos de bolsillos
-  const pockets = activeGroup.categories.map((cat: any) => {
-    const catWithOwner = cat as typeof cat & { owner?: { id: string; email: string; name?: string | null } | null }
-    const isOwner = catWithOwner.owner?.id === user.id
-    const ownerName = catWithOwner.owner?.name || catWithOwner.owner?.email?.split('@')[0] || 'Usuario'
+  const pockets = activeGroup.categories.map((cat: {
+    id: string
+    name: string
+    icon: string | null
+    color: string | null
+    isPersonal: boolean
+    ownerId: string | null
+    monthlyLimit: number | null | { toString: () => string; toNumber: () => number }
+    owner?: { id: string; email: string; name?: string | null } | null
+  }) => {
+    const isOwner = cat.owner?.id === user.id
+    const ownerName = cat.owner?.name || cat.owner?.email?.split('@')[0] || 'Usuario'
     
     return {
       id: cat.id,
@@ -180,7 +192,7 @@ export default async function DashboardPage() {
       emoji: cat.icon || '📁',
       color: cat.color || 'bg-gray-500',
       spent: expensesByCategory[cat.id] || 0,
-      limit: Number((cat as { monthlyLimit?: number | null }).monthlyLimit) || 0,
+      limit: cat.monthlyLimit ? (typeof cat.monthlyLimit === 'object' && 'toNumber' in cat.monthlyLimit ? cat.monthlyLimit.toNumber() : Number(cat.monthlyLimit)) : 0,
       isPersonal: cat.isPersonal,
       ownerId: cat.ownerId,
       ownerName: cat.isPersonal ? ownerName : null,
@@ -197,11 +209,19 @@ export default async function DashboardPage() {
   const dailySuggested = daysRemaining > 0 ? Math.round(remainingBudget / daysRemaining) : 0
 
   // Transacciones recientes
-  const recentTransactions = expenses.slice(0, 5).map((exp: any) => ({
+  const recentTransactions = expenses.slice(0, 5).map((exp: {
+    id: string
+    description: string | null
+    amount: number | string | { toString: () => string; toNumber: () => number }
+    category: { name: string; icon?: string | null } | null
+    creator?: { name: string | null; email: string } | null
+    createdBy: string
+    date: Date
+  }) => ({
     id: exp.id,
     description: exp.description || 'Sin descripción',
-    amount: Number(exp.amount),
-    category: exp.category?.name || 'Sin categoría',
+    amount: typeof exp.amount === 'object' && 'toNumber' in exp.amount ? exp.amount.toNumber() : Number(exp.amount),
+    category: (exp.category as { name: string; icon?: string | null } | null)?.name || 'Sin categoría',
     emoji: exp.category?.icon || '📁',
     date: formatRelativeDate(exp.date),
     creatorName: exp.creator?.name || exp.creator?.email?.split('@')[0] || 'Usuario',

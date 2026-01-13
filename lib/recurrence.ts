@@ -365,7 +365,7 @@ export function getNextRecurrenceDate(
   const maxDate = new Date(from)
   maxDate.setFullYear(maxDate.getFullYear() + 2)
   
-  let currentDate = new Date(from)
+  const currentDate = new Date(from)
   currentDate.setDate(currentDate.getDate() + 1) // Empezar desde mañana
   
   while (currentDate <= maxDate) {

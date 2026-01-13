@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
     // Si hay división de gastos, crear los ExpenseShare
     if (expenseShares && Array.isArray(expenseShares)) {
       await Promise.all(
-        expenseShares.map((share: any) =>
+        expenseShares.map((share: { userId: string; amount: number; percentage?: number | null }) =>
           prisma.expenseShare.create({
             data: {
               expenseId: expense.id,
@@ -184,10 +184,11 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json({ expense: expenseWithRelations }, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating expense:', error)
+    const message = error instanceof Error ? error.message : 'Error al crear gasto'
     return NextResponse.json(
-      { error: error.message || 'Error al crear gasto' },
+      { error: message },
       { status: 500 }
     )
   }

@@ -332,7 +332,7 @@ export default function SettingsPage() {
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 shadow-xl max-w-sm">
         <p className="text-white font-medium mb-2">¿Eliminar bolsillo?</p>
         <p className="text-slate-400 text-sm mb-4">
-          Esta acción no se puede deshacer. El bolsillo "{category?.name}" será eliminado permanentemente.
+          Esta acción no se puede deshacer. El bolsillo &ldquo;{category?.name}&rdquo; será eliminado permanentemente.
         </p>
         <div className="flex gap-2">
           <button

@@ -17,7 +17,16 @@ const connectionString =
 
 // Configurar Pool para Supabase
 // Nota: El pooler de Supabase (pgbouncer) requiere configuración especial
-const poolConfig: any = {
+const poolConfig: {
+  connectionString: string
+  max?: number
+  idleTimeoutMillis?: number
+  connectionTimeoutMillis?: number
+  ssl?: boolean | {
+    rejectUnauthorized?: boolean
+    require?: boolean
+  }
+} = {
   connectionString,
   max: 10,
   idleTimeoutMillis: 30000,

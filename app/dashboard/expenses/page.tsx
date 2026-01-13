@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import ExpensesList from '@/components/ExpensesList'
+import type { RecurringConfig } from '@/lib/recurrence'
 
 export const dynamic = 'force-dynamic'
 
@@ -113,7 +114,16 @@ export default async function ExpensesPage() {
   })
 
   // Preparar datos para el cliente
-  const expensesData = expenses.map((exp: { id: string; amount: any; description: string | null; date: Date; categoryId: string; category: any; creator: any; createdBy: string }) => ({
+  const expensesData = expenses.map((exp: {
+    id: string
+    amount: number | string | { toString: () => string; toNumber: () => number }
+    description: string | null
+    date: Date
+    categoryId: string
+    category: { name: string; icon: string | null; color: string | null; isPersonal: boolean } | null
+    creator: { name: string | null; email: string } | null
+    createdBy: string
+  }) => ({
     id: exp.id,
     amount: Number(exp.amount),
     description: exp.description || '',
@@ -138,7 +148,17 @@ export default async function ExpensesPage() {
   }))
 
   // Preparar datos de templates recurrentes
-  const recurringTemplatesData = recurringTemplates.map((template: { id: string; amount: any; description: string | null; date: Date; categoryId: string; category: any; creator: any; createdBy: string; recurringConfig: any }) => ({
+  const recurringTemplatesData = recurringTemplates.map((template: {
+    id: string
+    amount: number | string | { toString: () => string; toNumber: () => number }
+    description: string | null
+    date: Date
+    categoryId: string
+    category: { name: string; icon: string | null; color: string | null; isPersonal: boolean } | null
+    creator: { name: string | null; email: string } | null
+    createdBy: string
+    recurringConfig: unknown
+  }) => ({
     id: template.id,
     amount: Number(template.amount),
     description: template.description || '',
@@ -151,7 +171,7 @@ export default async function ExpensesPage() {
     creatorId: template.createdBy,
     creatorName: template.creator?.name || template.creator?.email?.split('@')[0] || 'Usuario',
     isOwner: template.createdBy === user.id,
-    recurringConfig: template.recurringConfig as any,
+    recurringConfig: template.recurringConfig as RecurringConfig,
   }))
 
   // Calcular totales

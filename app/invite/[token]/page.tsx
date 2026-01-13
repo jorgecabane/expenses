@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import AcceptInvitationForm from '@/components/AcceptInvitationForm'
@@ -81,12 +82,12 @@ export default async function InvitePage({
           <p className="mt-3 text-slate-400">
             Este link de invitación no existe, ha expirado o ya fue utilizado.
           </p>
-          <a
+          <Link
             href="/"
             className="inline-block mt-8 px-6 py-3 bg-slate-700 text-white font-medium rounded-xl hover:bg-slate-600 transition-colors"
           >
             Ir al inicio
-          </a>
+          </Link>
         </div>
       </div>
     )

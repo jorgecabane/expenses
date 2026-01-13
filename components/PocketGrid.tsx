@@ -6,8 +6,24 @@ import { Users, User } from 'lucide-react'
 import { getPocketStatusInfo } from '@/lib/pockets'
 import Link from 'next/link'
 
+interface Budget {
+  id: string
+  categoryId: string
+  amount: number
+  month: number
+  year: number
+  allocatedAmount: number | { toNumber: () => number }
+  spentAmount: number | { toNumber: () => number }
+  category?: {
+    name: string
+    icon?: string | null
+    color?: string | null
+    isPersonal?: boolean
+  } | null
+}
+
 interface PocketGridProps {
-  budgets: any[]
+  budgets: Budget[]
   groupId: string
 }
 
@@ -34,9 +50,11 @@ export default function PocketGrid({ budgets, groupId }: PocketGridProps) {
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {budgets.map((budget) => {
+          const allocatedAmount = typeof budget.allocatedAmount === 'object' && 'toNumber' in budget.allocatedAmount ? budget.allocatedAmount.toNumber() : budget.allocatedAmount
+          const spentAmount = typeof budget.spentAmount === 'object' && 'toNumber' in budget.spentAmount ? budget.spentAmount.toNumber() : budget.spentAmount
           const statusInfo = getPocketStatusInfo(
-            budget.allocatedAmount,
-            budget.spentAmount
+            allocatedAmount,
+            spentAmount
           )
           const percentage = statusInfo.percentage
           const remaining = statusInfo.remaining
@@ -50,10 +68,10 @@ export default function PocketGrid({ budgets, groupId }: PocketGridProps) {
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl">{budget.category.icon || '💰'}</span>
+                      <span className="text-2xl">{budget.category?.icon || '💰'}</span>
                       <div>
-                        <h3 className="font-semibold">{budget.category.name}</h3>
-                        {budget.category.isPersonal ? (
+                        <h3 className="font-semibold">{budget.category?.name || 'Sin categoría'}</h3>
+                        {budget.category?.isPersonal ? (
                           <Badge variant="secondary" className="mt-1">
                             <User className="mr-1 h-3 w-3" />
                             Personal
@@ -75,7 +93,7 @@ export default function PocketGrid({ budgets, groupId }: PocketGridProps) {
                         {new Intl.NumberFormat('es-AR', {
                           style: 'currency',
                           currency: 'ARS',
-                        }).format(budget.spentAmount.toNumber())}
+                        }).format(spentAmount)}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
@@ -84,7 +102,7 @@ export default function PocketGrid({ budgets, groupId }: PocketGridProps) {
                         {new Intl.NumberFormat('es-AR', {
                           style: 'currency',
                           currency: 'ARS',
-                        }).format(budget.allocatedAmount.toNumber())}
+                        }).format(allocatedAmount)}
                       </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden mt-2">
