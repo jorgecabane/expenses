@@ -39,9 +39,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Obtener todas las tareas del grupo (ahora son persistentes, no por mes)
+    // Solo incluir tareas cuyo template esté activo
     const tasks = await prisma.monthlyPaymentTask.findMany({
       where: {
         groupId,
+        template: {
+          isActive: true, // Solo tareas con templates activos
+        },
       },
       include: {
         template: {
