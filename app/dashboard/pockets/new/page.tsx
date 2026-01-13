@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { 
   Wallet, 
@@ -43,6 +43,7 @@ interface PocketData {
 
 export default function NewPocketPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [groupId, setGroupId] = useState<string | null>(null)
   const [data, setData] = useState<PocketData>({
@@ -53,14 +54,41 @@ export default function NewPocketPage() {
     isPersonal: false,
   })
 
-  // Obtener el grupo del usuario
+  // Obtener el grupo activo del usuario
   useEffect(() => {
     async function fetchGroup() {
       try {
-        const res = await fetch('/api/groups')
-        const { groups } = await res.json()
-        if (groups && groups.length > 0) {
-          setGroupId(groups[0].id)
+        // Obtener usuario (que incluye activeGroupId) y grupos
+        const [userRes, groupsRes] = await Promise.all([
+          fetch('/api/user'),
+          fetch('/api/groups'),
+        ])
+        
+        if (groupsRes.ok) {
+          const { groups } = await groupsRes.json()
+          if (groups && groups.length > 0) {
+            let selectedGroup = groups[0]
+            
+            // Si tenemos el usuario con activeGroupId, usarlo
+            if (userRes.ok) {
+              const userData = await userRes.json()
+              if (userData.user?.activeGroupId) {
+                const found = groups.find((g: { id: string }) => g.id === userData.user.activeGroupId)
+                if (found) {
+                  selectedGroup = found
+                }
+              } else {
+                // Si no hay grupo activo guardado, guardar el primero
+                await fetch('/api/user', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ activeGroupId: selectedGroup.id }),
+                })
+              }
+            }
+            
+            setGroupId(selectedGroup.id)
+          }
         }
       } catch (error) {
         console.error('Error fetching groups:', error)
@@ -93,7 +121,13 @@ export default function NewPocketPage() {
 
       if (!res.ok) throw new Error('Error al crear bolsillo')
       
-      router.push('/dashboard')
+      // Si viene de configuraciones, volver a configuraciones; si no, al dashboard
+      const returnTo = searchParams.get('returnTo')
+      if (returnTo === 'settings') {
+        router.push('/dashboard/settings')
+      } else {
+        router.push('/dashboard')
+      }
     } catch (error) {
       console.error('Error:', error)
       alert('Hubo un error al crear el bolsillo. Por favor intenta de nuevo.')

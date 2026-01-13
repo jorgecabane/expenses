@@ -20,7 +20,8 @@ import {
   ChevronDown,
   Check,
   Loader2,
-  User
+  User,
+  CheckSquare
 } from 'lucide-react'
 
 interface Group {
@@ -33,6 +34,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Gastos', href: '/dashboard/expenses', icon: Receipt },
   { name: 'Ingresos', href: '/dashboard/incomes', icon: TrendingUp },
+  { name: 'Recordatorios', href: '/dashboard/reminders', icon: CheckSquare },
   { name: 'Reportes', href: '/dashboard/reports', icon: BarChart3 },
   { name: 'Configuración', href: '/dashboard/settings', icon: Settings },
 ]
@@ -389,6 +391,9 @@ export default function DashboardLayout({
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ activeGroupId: group.id }),
                                 })
+                                
+                                // Disparar evento para que las páginas client-side recarguen sus datos
+                                window.dispatchEvent(new CustomEvent('groupUpdated'))
                                 
                                 // Refrescar los Server Components sin recargar toda la página
                                 router.refresh()

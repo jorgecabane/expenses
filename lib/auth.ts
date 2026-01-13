@@ -93,7 +93,7 @@ export async function canUserAccessCategory(userId: string, categoryId: string):
   if (!category) return false
 
   // Verificar si el usuario es miembro del grupo
-  const isMember = category.group.members.some((m) => m.userId === userId)
+  const isMember = category.group.members.some((m: { userId: string }) => m.userId === userId)
   if (!isMember) return false
 
   // Si es personal, verificar que el usuario es el dueño

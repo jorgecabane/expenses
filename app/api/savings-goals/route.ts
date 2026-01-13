@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     // Calcular ahorro actual para cada meta
     const goalsWithSavings = await Promise.all(
-      goals.map(async (goal) => {
+      goals.map(async (goal: { id: string; month: number; year: number; userId: string | null; targetAmount: { toNumber: () => number }; currentSaved: { toNumber: () => number } }) => {
         // Obtener ingresos del mes
         const incomes = await prisma.income.findMany({
           where: {
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         })
 
         const totalIncome = incomes.reduce(
-          (sum, inc) => sum + inc.amount.toNumber(),
+          (sum: number, inc: { amount: { toNumber: () => number } }) => sum + inc.amount.toNumber(),
           0
         )
 
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
         })
 
         const totalExpenses = expenses.reduce(
-          (sum, exp) => sum + exp.amount.toNumber(),
+          (sum: number, exp: { amount: { toNumber: () => number } }) => sum + exp.amount.toNumber(),
           0
         )
 
@@ -132,6 +132,26 @@ export async function POST(request: NextRequest) {
     if (!groupId || !targetAmount || !type) {
       return NextResponse.json(
         { error: 'groupId, targetAmount y type son requeridos' },
+        { status: 400 }
+      )
+    }
+
+    // Verificar que el grupo activo del usuario coincida con el grupo proporcionado
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { activeGroupId: true },
+    })
+
+    if (!dbUser?.activeGroupId) {
+      return NextResponse.json(
+        { error: 'No tienes un grupo activo. Por favor, selecciona un grupo primero.' },
+        { status: 400 }
+      )
+    }
+
+    if (dbUser.activeGroupId !== groupId) {
+      return NextResponse.json(
+        { error: 'El grupo proporcionado no coincide con tu grupo activo. Por favor, cambia al grupo correcto.' },
         { status: 400 }
       )
     }

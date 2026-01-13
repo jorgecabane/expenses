@@ -85,7 +85,7 @@ export default async function DashboardPage() {
   })
   
   // Buscar el grupo activo en los miembros del usuario
-  let activeGroup = memberships.find(m => m.group.id === dbUser?.activeGroupId)?.group
+  let activeGroup = memberships.find((m: { group: { id: string } }) => m.group.id === dbUser?.activeGroupId)?.group
   if (!activeGroup) {
     // Si no se encuentra el grupo activo guardado o no existe, usar el primero
     activeGroup = memberships[0].group
@@ -159,17 +159,17 @@ export default async function DashboardPage() {
       isRecurring: false, // Solo transacciones generadas, no templates
     },
   })
-  const totalIncome = incomes.reduce((acc, inc) => acc + Number(inc.amount), 0)
+  const totalIncome = incomes.reduce((acc: number, inc: { amount: any }) => acc + Number(inc.amount), 0)
 
   // Calcular gastos por categoría usando TODOS los gastos del mes (no solo los 10 recientes)
   const expensesByCategory: Record<string, number> = {}
-  allExpenses.forEach(exp => {
+  allExpenses.forEach((exp: { categoryId: string; amount: any }) => {
     const catId = exp.categoryId
     expensesByCategory[catId] = (expensesByCategory[catId] || 0) + Number(exp.amount)
   })
 
   // Preparar datos de bolsillos
-  const pockets = activeGroup.categories.map(cat => {
+  const pockets = activeGroup.categories.map((cat: any) => {
     const catWithOwner = cat as typeof cat & { owner?: { id: string; email: string; name?: string | null } | null }
     const isOwner = catWithOwner.owner?.id === user.id
     const ownerName = catWithOwner.owner?.name || catWithOwner.owner?.email?.split('@')[0] || 'Usuario'
@@ -190,14 +190,14 @@ export default async function DashboardPage() {
   })
 
   // Calcular totales
-  const totalSpent = pockets.reduce((acc, p) => acc + p.spent, 0)
-  const totalLimit = pockets.reduce((acc, p) => acc + p.limit, 0)
+  const totalSpent = pockets.reduce((acc: number, p: { spent: number }) => acc + p.spent, 0)
+  const totalLimit = pockets.reduce((acc: number, p: { limit: number }) => acc + p.limit, 0)
   const remainingBudget = totalLimit - totalSpent
   const spentPercentage = totalLimit > 0 ? (totalSpent / totalLimit) * 100 : 0
   const dailySuggested = daysRemaining > 0 ? Math.round(remainingBudget / daysRemaining) : 0
 
   // Transacciones recientes
-  const recentTransactions = expenses.slice(0, 5).map(exp => ({
+  const recentTransactions = expenses.slice(0, 5).map((exp: any) => ({
     id: exp.id,
     description: exp.description || 'Sin descripción',
     amount: Number(exp.amount),
@@ -209,7 +209,7 @@ export default async function DashboardPage() {
   }))
 
   // Preparar categorías para el formulario
-  const categories = activeGroup.categories.map(cat => ({
+  const categories = activeGroup.categories.map((cat: { id: string; name: string; icon: string | null; color: string | null; isPersonal: boolean; ownerId: string | null }) => ({
     id: cat.id,
     name: cat.name,
     icon: cat.icon,

@@ -7,9 +7,6 @@ import { Wallet, Home, BarChart3, Settings, LogOut } from 'lucide-react'
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardSidebar() {
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/4c0619d2-9be9-47c4-91b3-8b54a28f5e91',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/DashboardSidebar.tsx:9',message:'DashboardSidebar entry',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix-v3',hypothesisId:'E'})}).catch(()=>{});
-  // #endregion
   
   // El middleware ya maneja la autenticación, así que no necesitamos verificar el usuario aquí
   // Si llegamos aquí, el usuario está autenticado (el middleware lo verificó)

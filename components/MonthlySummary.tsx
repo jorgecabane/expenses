@@ -21,10 +21,10 @@ export default async function MonthlySummary({ groupId, month, year }: MonthlySu
 
   // Calcular totales
   const totalAllocated = budgets.reduce(
-    (sum, b) => sum + b.allocatedAmount.toNumber(),
+    (sum: number, b: { allocatedAmount: { toNumber: () => number } }) => sum + b.allocatedAmount.toNumber(),
     0
   )
-  const totalSpent = budgets.reduce((sum, b) => sum + b.spentAmount.toNumber(), 0)
+  const totalSpent = budgets.reduce((sum: number, b: { spentAmount: { toNumber: () => number } }) => sum + b.spentAmount.toNumber(), 0)
   const totalRemaining = totalAllocated - totalSpent
 
   // Obtener ingresos/presupuesto del grupo

@@ -36,7 +36,7 @@ export default async function ReportsPage() {
   }
 
   // Buscar el grupo activo en los miembros del usuario
-  let activeGroup = memberships.find(m => m.group.id === dbUser?.activeGroupId)?.group
+  let activeGroup = memberships.find((m: { group: { id: string } }) => m.group.id === dbUser?.activeGroupId)?.group
   if (!activeGroup) {
     // Si no se encuentra el grupo activo guardado o no existe, usar el primero
     activeGroup = memberships[0].group
@@ -109,7 +109,7 @@ export default async function ReportsPage() {
   }
 
   // Sumar gastos por mes usando UTC
-  expenses.forEach(exp => {
+  expenses.forEach((exp: { date: Date; amount: any }) => {
     const d = new Date(exp.date)
     const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`
     if (monthlyData[key]) {
@@ -118,7 +118,7 @@ export default async function ReportsPage() {
   })
 
   // Sumar ingresos por mes usando UTC
-  incomes.forEach(inc => {
+  incomes.forEach((inc: { date: Date; amount: any }) => {
     const d = new Date(inc.date)
     const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`
     if (monthlyData[key]) {
@@ -135,7 +135,7 @@ export default async function ReportsPage() {
   const startOfMonth = new Date(Date.UTC(currentYear, currentMonth, 1))
   const endOfMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0, 23, 59, 59, 999))
   
-  const currentMonthExpenses = expenses.filter(exp => {
+  const currentMonthExpenses = expenses.filter((exp: { date: Date; categoryId: string; amount: any }) => {
     const expDate = new Date(exp.date)
     // Comparar usando UTC para evitar problemas de zona horaria
     const expYear = expDate.getUTCFullYear()
@@ -164,7 +164,7 @@ export default async function ReportsPage() {
   
   const byCategory: Record<string, { name: string; icon: string; color: string; amount: number }> = {}
   
-  currentMonthExpenses.forEach(exp => {
+  currentMonthExpenses.forEach((exp: { categoryId: string; amount: any; category?: { name: string; icon: string | null; color: string | null } | null }) => {
     const catId = exp.categoryId
     if (!byCategory[catId]) {
       byCategory[catId] = {
@@ -178,11 +178,11 @@ export default async function ReportsPage() {
   })
 
   const categoryData = Object.values(byCategory)
-    .sort((a, b) => b.amount - a.amount)
+    .sort((a: { amount: number }, b: { amount: number }) => b.amount - a.amount)
 
   // Calcular totales del mes actual usando UTC
-  const thisMonthExpenses = currentMonthExpenses.reduce((acc, exp) => acc + Number(exp.amount), 0)
-  const filteredIncomes = incomes.filter(inc => {
+  const thisMonthExpenses = currentMonthExpenses.reduce((acc: number, exp: { amount: any }) => acc + Number(exp.amount), 0)
+  const filteredIncomes = incomes.filter((inc: { date: Date }) => {
     const incDate = new Date(inc.date)
     // Comparar usando UTC para evitar problemas de zona horaria
     const incYear = incDate.getUTCFullYear()
@@ -208,11 +208,11 @@ export default async function ReportsPage() {
     
     return isInRange
   })
-  const thisMonthIncomes = filteredIncomes.reduce((acc, inc) => acc + Number(inc.amount), 0)
+  const thisMonthIncomes = filteredIncomes.reduce((acc: number, inc: { amount: any }) => acc + Number(inc.amount), 0)
 
   // Calcular totales de todos los tiempos
-  const totalExpenses = expenses.reduce((acc, exp) => acc + Number(exp.amount), 0)
-  const totalIncomes = incomes.reduce((acc, inc) => acc + Number(inc.amount), 0)
+  const totalExpenses = expenses.reduce((acc: number, exp: { amount: any }) => acc + Number(exp.amount), 0)
+  const totalIncomes = incomes.reduce((acc: number, inc: { amount: any }) => acc + Number(inc.amount), 0)
 
   // Calcular promedios
   const avgMonthlyExpenses = totalExpenses / 6

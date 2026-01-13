@@ -84,7 +84,7 @@ export async function DELETE(
     // Verificar si hay gastos asociados a esta categoría
     // Esto incluye tanto gastos normales como gastos recurrentes (templates)
     // Usar una transacción para asegurar que la verificación y eliminación sean atómicas
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => {
       // Primero verificar si existe la categoría
       const category = await tx.category.findUnique({
         where: { id: categoryId },
@@ -118,8 +118,8 @@ export async function DELETE(
           take: 5, // Solo los primeros 5 para el mensaje
         })
 
-        const recurringCount = expenses.filter(e => e.isRecurring).length
-        const regularCount = expenses.filter(e => !e.isRecurring).length
+        const recurringCount = expenses.filter((e: { isRecurring: boolean }) => e.isRecurring).length
+        const regularCount = expenses.filter((e: { isRecurring: boolean }) => !e.isRecurring).length
 
         return {
           canDelete: false,

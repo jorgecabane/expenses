@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Agregar el link de invitación a cada una
-    const invitationsWithLinks = invitations.map((inv) => ({
+    const invitationsWithLinks = invitations.map((inv: { token: string; expiresAt: Date | null }) => ({
       ...inv,
       inviteLink: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/invite/${inv.token}`,
       isExpired: inv.expiresAt ? inv.expiresAt < new Date() : false,
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
 
     const existingMember = group.members.find(
-      (m) => m.userId === email // Esto debería verificar por email del usuario
+      (m: { userId: string }) => m.userId === email // Esto debería verificar por email del usuario
     )
 
     // Generar token único y fecha de expiración

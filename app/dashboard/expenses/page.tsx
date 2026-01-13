@@ -40,7 +40,7 @@ export default async function ExpensesPage() {
   }
 
   // Buscar el grupo activo en los miembros del usuario
-  let activeGroup = memberships.find(m => m.group.id === dbUser?.activeGroupId)?.group
+  let activeGroup = memberships.find((m: { group: { id: string } }) => m.group.id === dbUser?.activeGroupId)?.group
   if (!activeGroup) {
     // Si no se encuentra el grupo activo guardado o no existe, usar el primero
     activeGroup = memberships[0].group
@@ -57,6 +57,7 @@ export default async function ExpensesPage() {
   // Excluir templates recurrentes (solo mostrar transacciones generadas)
   const threeMonthsAgo = new Date()
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+  threeMonthsAgo.setUTCHours(0, 0, 0, 0) // Normalizar a UTC medianoche
 
   const expenses = await prisma.expense.findMany({
     where: {
@@ -112,7 +113,7 @@ export default async function ExpensesPage() {
   })
 
   // Preparar datos para el cliente
-  const expensesData = expenses.map(exp => ({
+  const expensesData = expenses.map((exp: { id: string; amount: any; description: string | null; date: Date; categoryId: string; category: any; creator: any; createdBy: string }) => ({
     id: exp.id,
     amount: Number(exp.amount),
     description: exp.description || '',
@@ -127,7 +128,7 @@ export default async function ExpensesPage() {
     isOwner: exp.createdBy === user.id,
   }))
 
-  const categoriesData = activeGroup.categories.map(cat => ({
+  const categoriesData = activeGroup.categories.map((cat: { id: string; name: string; icon: string | null; color: string | null; isPersonal: boolean; ownerId: string | null }) => ({
     id: cat.id,
     name: cat.name,
     icon: cat.icon,
@@ -137,7 +138,7 @@ export default async function ExpensesPage() {
   }))
 
   // Preparar datos de templates recurrentes
-  const recurringTemplatesData = recurringTemplates.map(template => ({
+  const recurringTemplatesData = recurringTemplates.map((template: { id: string; amount: any; description: string | null; date: Date; categoryId: string; category: any; creator: any; createdBy: string; recurringConfig: any }) => ({
     id: template.id,
     amount: Number(template.amount),
     description: template.description || '',
@@ -154,7 +155,7 @@ export default async function ExpensesPage() {
   }))
 
   // Calcular totales
-  const totalExpenses = expensesData.reduce((acc, exp) => acc + exp.amount, 0)
+  const totalExpenses = expensesData.reduce((acc: number, exp: { amount: number }) => acc + exp.amount, 0)
   
   // Por mes actual usando UTC para evitar problemas de zona horaria
   const now = new Date()
@@ -163,7 +164,7 @@ export default async function ExpensesPage() {
   const startOfMonth = new Date(Date.UTC(currentYear, currentMonth, 1))
   const endOfMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0, 23, 59, 59, 999))
   
-  const thisMonthExpenses = expensesData.filter(exp => {
+  const thisMonthExpenses = expensesData.filter((exp: { date: string; amount: number }) => {
     const expDate = new Date(exp.date)
     // Comparar usando UTC para evitar problemas de zona horaria
     const expYear = expDate.getUTCFullYear()
@@ -189,7 +190,7 @@ export default async function ExpensesPage() {
     
     return isInRange
   })
-  const thisMonthTotal = thisMonthExpenses.reduce((acc, exp) => acc + exp.amount, 0)
+  const thisMonthTotal = thisMonthExpenses.reduce((acc: number, exp: { amount: number }) => acc + exp.amount, 0)
 
   return (
     <ExpensesList

@@ -116,41 +116,72 @@ export default function SettingsPage() {
   const [resendingInvite, setResendingInvite] = useState<string | null>(null)
   const [removingMember, setRemovingMember] = useState<string | null>(null)
 
-  // Cargar datos
+  // Función para cargar datos del grupo
+  const loadGroupData = async (selectedGroup: Group) => {
+    setGroup(selectedGroup)
+    setGroupName(selectedGroup.name)
+    setGroupCurrency(selectedGroup.currency || 'CLP')
+    
+    // Obtener categorías del grupo
+    const categoriesRes = await fetch(`/api/categories?groupId=${selectedGroup.id}`)
+    if (categoriesRes.ok) {
+      const catData = await categoriesRes.json()
+      setCategories(catData.categories || [])
+    }
+    
+    // Obtener invitaciones pendientes (solo si es owner)
+    if (selectedGroup.currentUserRole === 'owner') {
+      const invitationsRes = await fetch(`/api/invitations?groupId=${selectedGroup.id}`)
+      if (invitationsRes.ok) {
+        const invData = await invitationsRes.json()
+        setPendingInvitations(invData.invitations || [])
+      }
+    } else {
+      // Limpiar invitaciones si no es owner
+      setPendingInvitations([])
+    }
+  }
+
+  // Cargar datos iniciales
   useEffect(() => {
     async function fetchData() {
       try {
-        // Primero obtener grupos
-        const groupsRes = await fetch('/api/groups')
+        // Obtener usuario (que incluye activeGroupId) y grupos
+        const [userRes, groupsRes] = await Promise.all([
+          fetch('/api/user'),
+          fetch('/api/groups'),
+        ])
         
         if (groupsRes.ok) {
           const data = await groupsRes.json()
           if (data.groups && data.groups.length > 0) {
-            const activeGroup = data.groups[0]
-            setGroup(activeGroup)
-            setGroupName(activeGroup.name)
-            setGroupCurrency(activeGroup.currency || 'CLP')
+            let selectedGroup = data.groups[0]
+            
+            // Si tenemos el usuario con activeGroupId, usarlo
+            if (userRes.ok) {
+              const userData = await userRes.json()
+              if (userData.user?.activeGroupId) {
+                const found = data.groups.find((g: Group) => g.id === userData.user.activeGroupId)
+                if (found) {
+                  selectedGroup = found
+                }
+              } else {
+                // Si no hay grupo activo guardado, guardar el primero
+                await fetch('/api/user', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ activeGroupId: selectedGroup.id }),
+                })
+              }
+            }
             
             // Obtener el ID del usuario actual
             if (data.currentUserId) {
               setCurrentUserId(data.currentUserId)
             }
             
-            // Obtener categorías del grupo
-            const categoriesRes = await fetch(`/api/categories?groupId=${activeGroup.id}`)
-            if (categoriesRes.ok) {
-              const catData = await categoriesRes.json()
-              setCategories(catData.categories || [])
-            }
-            
-            // Obtener invitaciones pendientes (solo si es owner)
-            if (activeGroup.currentUserRole === 'owner') {
-              const invitationsRes = await fetch(`/api/invitations?groupId=${activeGroup.id}`)
-              if (invitationsRes.ok) {
-                const invData = await invitationsRes.json()
-                setPendingInvitations(invData.invitations || [])
-              }
-            }
+            // Cargar datos del grupo seleccionado
+            await loadGroupData(selectedGroup)
           }
         }
       } catch (error) {
@@ -160,6 +191,44 @@ export default function SettingsPage() {
       }
     }
     fetchData()
+  }, [])
+
+  // Escuchar cambios de grupo desde el layout
+  useEffect(() => {
+    const handleGroupUpdate = async () => {
+      try {
+        // Obtener usuario (que incluye activeGroupId) y grupos
+        const [userRes, groupsRes] = await Promise.all([
+          fetch('/api/user'),
+          fetch('/api/groups'),
+        ])
+        
+        if (groupsRes.ok) {
+          const data = await groupsRes.json()
+          if (data.groups && data.groups.length > 0) {
+            let selectedGroup = data.groups[0]
+            
+            if (userRes.ok) {
+              const userData = await userRes.json()
+              if (userData.user?.activeGroupId) {
+                const found = data.groups.find((g: Group) => g.id === userData.user.activeGroupId)
+                if (found) {
+                  selectedGroup = found
+                }
+              }
+            }
+            
+            // Recargar datos del nuevo grupo
+            await loadGroupData(selectedGroup)
+          }
+        }
+      } catch (error) {
+        console.error('Error reloading group:', error)
+      }
+    }
+
+    window.addEventListener('groupUpdated', handleGroupUpdate)
+    return () => window.removeEventListener('groupUpdated', handleGroupUpdate)
   }, [])
 
   // Guardar configuración del grupo
@@ -852,7 +921,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <button 
-              onClick={() => router.push('/dashboard/pockets/new')}
+              onClick={() => router.push('/dashboard/pockets/new?returnTo=settings')}
               className="text-emerald-400 text-sm font-medium hover:text-emerald-300 transition-colors"
             >
               + Nuevo bolsillo

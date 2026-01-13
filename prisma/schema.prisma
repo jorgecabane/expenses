@@ -20,47 +20,51 @@ model User {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   // Relations
-  createdGroups     FamilyGroup[]      @relation("GroupOwner")
-  groupMemberships  GroupMember[]
-  createdCategories Category[]         @relation("CategoryOwner")
-  createdExpenses   Expense[]
-  createdIncomes    Income[]
-  personalSavings   SavingsGoal[]     @relation("PersonalSavings")
-  sentInvitations   GroupInvitation[] @relation("Inviter")
-  expenseShares     ExpenseShare[]
+  createdGroups         FamilyGroup[]        @relation("GroupOwner")
+  groupMemberships      GroupMember[]
+  createdCategories     Category[]           @relation("CategoryOwner")
+  createdExpenses       Expense[]
+  createdIncomes        Income[]
+  personalSavings       SavingsGoal[]        @relation("PersonalSavings")
+  sentInvitations       GroupInvitation[]    @relation("Inviter")
+  expenseShares         ExpenseShare[]
+  completedPaymentTasks MonthlyPaymentTask[] @relation("CompletedBy")
 
   @@map("users")
 }
 
 // Family Group (Grupo Familiar/Pareja)
 model FamilyGroup {
-  id        String   @id @default(cuid())
-  name      String
-  currency  String   @default("USD")
-  createdBy String   @map("created_by")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                              String   @id @default(cuid())
+  name                            String
+  currency                        String   @default("USD")
+  createdBy                       String   @map("created_by")
+  autoCreateExpensesFromReminders Boolean  @default(false) @map("auto_create_expenses_from_reminders")
+  createdAt                       DateTime @default(now()) @map("created_at")
+  updatedAt                       DateTime @updatedAt @map("updated_at")
 
   // Relations
-  owner       User              @relation("GroupOwner", fields: [createdBy], references: [id], onDelete: Cascade)
-  members     GroupMember[]
-  categories  Category[]
-  expenses    Expense[]
-  budgets     MonthlyBudget[]
-  incomes     Income[]
-  savings     SavingsGoal[]
-  invitations GroupInvitation[]
+  owner               User                 @relation("GroupOwner", fields: [createdBy], references: [id], onDelete: Cascade)
+  members             GroupMember[]
+  categories          Category[]
+  expenses            Expense[]
+  budgets             MonthlyBudget[]
+  incomes             Income[]
+  savings             SavingsGoal[]
+  invitations         GroupInvitation[]
+  paymentTemplates    PaymentTemplate[]
+  monthlyPaymentTasks MonthlyPaymentTask[]
 
   @@map("family_groups")
 }
 
 // Group Member
 model GroupMember {
-  id        String   @id @default(cuid())
-  groupId   String   @map("group_id")
-  userId    String   @map("user_id")
-  role      String   @default("member") // owner | member
-  joinedAt  DateTime @default(now()) @map("joined_at")
+  id       String   @id @default(cuid())
+  groupId  String   @map("group_id")
+  userId   String   @map("user_id")
+  role     String   @default("member") // owner | member
+  joinedAt DateTime @default(now()) @map("joined_at")
 
   // Relations
   group FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -83,8 +87,8 @@ model GroupInvitation {
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  group    FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  inviter  User        @relation("Inviter", fields: [invitedBy], references: [id], onDelete: Cascade)
+  group   FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  inviter User        @relation("Inviter", fields: [invitedBy], references: [id], onDelete: Cascade)
 
   @@unique([groupId, email])
   @@map("group_invitations")
@@ -103,27 +107,28 @@ model Category {
   createdAt    DateTime @default(now()) @map("created_at")
 
   // Relations
-  group     FamilyGroup    @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  owner     User?          @relation("CategoryOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  expenses  Expense[]
-  budgets   MonthlyBudget[]
+  group            FamilyGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  owner            User?             @relation("CategoryOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  expenses         Expense[]
+  budgets          MonthlyBudget[]
+  paymentTemplates PaymentTemplate[]
 
   @@map("categories")
 }
 
 // Monthly Budget (Bolsillo mensual)
 model MonthlyBudget {
-  id             String   @id @default(cuid())
-  groupId        String   @map("group_id")
-  categoryId     String   @map("category_id")
-  month          Int
-  year           Int
-  userId         String?  @map("user_id") // null para compartidos, user_id para personales
+  id              String   @id @default(cuid())
+  groupId         String   @map("group_id")
+  categoryId      String   @map("category_id")
+  month           Int
+  year            Int
+  userId          String?  @map("user_id") // null para compartidos, user_id para personales
   allocatedAmount Decimal  @map("allocated_amount") @db.Decimal(10, 2)
-  spentAmount    Decimal  @default(0) @map("spent_amount") @db.Decimal(10, 2)
-  remainingAmount Decimal @default(0) @map("remaining_amount") @db.Decimal(10, 2)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  spentAmount     Decimal  @default(0) @map("spent_amount") @db.Decimal(10, 2)
+  remainingAmount Decimal  @default(0) @map("remaining_amount") @db.Decimal(10, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   // Relations
   group    FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -135,23 +140,24 @@ model MonthlyBudget {
 
 // Expense
 model Expense {
-  id             String    @id @default(cuid())
-  groupId        String    @map("group_id")
-  categoryId     String    @map("category_id")
-  amount         Decimal   @db.Decimal(10, 2)
-  description    String?
-  date           DateTime  @default(now())
-  createdBy      String    @map("created_by")
-  isRecurring    Boolean   @default(false) @map("is_recurring")
+  id              String   @id @default(cuid())
+  groupId         String   @map("group_id")
+  categoryId      String   @map("category_id")
+  amount          Decimal  @db.Decimal(10, 2)
+  description     String?
+  date            DateTime @default(now())
+  createdBy       String   @map("created_by")
+  isRecurring     Boolean  @default(false) @map("is_recurring")
   recurringConfig Json?    @map("recurring_config")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   // Relations
-  group        FamilyGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  category     Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  creator      User         @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  group         FamilyGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  category      Category            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  creator       User                @relation(fields: [createdBy], references: [id], onDelete: Cascade)
   expenseShares ExpenseShare[]
+  paymentTask   MonthlyPaymentTask?
 
   @@map("expenses")
 }
@@ -174,16 +180,16 @@ model ExpenseShare {
 
 // Income (Presupuesto/Ingresos)
 model Income {
-  id             String    @id @default(cuid())
-  groupId        String    @map("group_id")
-  userId         String?   @map("user_id") // null para presupuesto del grupo, user_id para ingresos personales
-  amount         Decimal   @db.Decimal(10, 2)
-  description    String?
-  date           DateTime  @default(now())
-  createdBy      String    @map("created_by")
-  isRecurring    Boolean   @default(false) @map("is_recurring")
+  id              String   @id @default(cuid())
+  groupId         String   @map("group_id")
+  userId          String?  @map("user_id") // null para presupuesto del grupo, user_id para ingresos personales
+  amount          Decimal  @db.Decimal(10, 2)
+  description     String?
+  date            DateTime @default(now())
+  createdBy       String   @map("created_by")
+  isRecurring     Boolean  @default(false) @map("is_recurring")
   recurringConfig Json?    @map("recurring_config")
-  createdAt      DateTime  @default(now()) @map("created_at")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   // Relations
   group   FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -210,4 +216,49 @@ model SavingsGoal {
 
   @@unique([groupId, userId, month, year])
   @@map("savings_goals")
+}
+
+// Payment Template (Template de pago recurrente variable)
+model PaymentTemplate {
+  id                String   @id @default(cuid())
+  groupId           String   @map("group_id")
+  name              String
+  defaultCategoryId String   @map("default_category_id")
+  estimatedDay      Int?     @map("estimated_day") // Día aproximado del mes (1-31)
+  estimatedAmount   Decimal? @map("estimated_amount") @db.Decimal(10, 2) // Solo referencia
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  group    FamilyGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  category Category             @relation(fields: [defaultCategoryId], references: [id], onDelete: Cascade)
+  tasks    MonthlyPaymentTask[]
+
+  @@map("payment_templates")
+}
+
+// Monthly Payment Task (Tarea mensual de pago)
+// Una tarea por template por grupo. Se resetea cada mes.
+model MonthlyPaymentTask {
+  id          String    @id @default(cuid())
+  templateId  String    @map("template_id")
+  groupId     String    @map("group_id")
+  isCompleted Boolean   @default(false) @map("is_completed")
+  paidAmount  Decimal?  @map("paid_amount") @db.Decimal(10, 2)
+  paidDate    DateTime? @map("paid_date")
+  expenseId   String?   @unique @map("expense_id") // ID del gasto creado (si se creó)
+  completedBy String?   @map("completed_by")
+  lastResetAt DateTime  @default(now()) @map("last_reset_at") // Última vez que se reseteó (para tracking)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  template  PaymentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  group     FamilyGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  completer User?           @relation("CompletedBy", fields: [completedBy], references: [id], onDelete: SetNull)
+  expense   Expense?        @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+
+  @@unique([templateId, groupId])
+  @@map("monthly_payment_tasks")
 }

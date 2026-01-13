@@ -131,6 +131,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Verificar que el grupo activo del usuario coincida con el grupo proporcionado
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { activeGroupId: true },
+    })
+
+    if (!dbUser?.activeGroupId) {
+      return NextResponse.json(
+        { error: 'No tienes un grupo activo. Por favor, selecciona un grupo primero.' },
+        { status: 400 }
+      )
+    }
+
+    if (dbUser.activeGroupId !== groupId) {
+      return NextResponse.json(
+        { error: 'El grupo proporcionado no coincide con tu grupo activo. Por favor, cambia al grupo correcto.' },
+        { status: 400 }
+      )
+    }
+
     const hasAccess = await canUserAccessGroup(user.id, groupId)
     if (!hasAccess) {
       return NextResponse.json(

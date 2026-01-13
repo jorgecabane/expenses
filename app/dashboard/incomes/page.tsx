@@ -299,7 +299,7 @@ export default function IncomesPage() {
   })
 
   // Agrupar ingresos por día usando UTC para evitar conversión de zona horaria
-  const groupedIncomes = filteredIncomes.reduce((groups, income) => {
+  const groupedIncomes = filteredIncomes.reduce((groups: Record<string, Income[]>, income: Income) => {
     const incDate = new Date(income.date)
     // Crear clave usando año-mes-día en UTC para evitar problemas de zona horaria
     const dateKey = `${incDate.getUTCFullYear()}-${String(incDate.getUTCMonth() + 1).padStart(2, '0')}-${String(incDate.getUTCDate()).padStart(2, '0')}`
@@ -595,9 +595,9 @@ export default function IncomesPage() {
             </p>
           </div>
         ) : (
-          sortedDates.map(date => {
-            const dayIncomes = groupedIncomes[date]
-            const dayTotal = dayIncomes.reduce((sum, inc) => sum + Number(inc.amount), 0)
+          sortedDates.map((date: string) => {
+            const dayIncomes = groupedIncomes[date] || []
+            const dayTotal = dayIncomes.reduce((sum: number, inc: Income) => sum + Number(inc.amount), 0)
             
             return (
               <div key={date} className="space-y-3">
@@ -618,7 +618,7 @@ export default function IncomesPage() {
 
                 {/* Incomes */}
                 <div className="bg-slate-800/50 rounded-2xl border border-slate-700 divide-y divide-slate-700/50 overflow-hidden">
-                  {dayIncomes.map(income => {
+                  {dayIncomes.map((income: Income) => {
                     const isOwner = currentUserId === income.creator.id
                     return (
                       <div 
