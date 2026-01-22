@@ -480,12 +480,20 @@ export default function SetupPage() {
       
       const { group } = await groupResponse.json()
       
+      // Establecer activeGroupId después de crear el grupo
+      // Esto es necesario para que la API de categorías permita crear los bolsillos
+      await fetch('/api/user', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activeGroupId: group.id }),
+      })
+      
       // Crear categorías (bolsillos)
       for (const pocketId of data.selectedPockets) {
         const pocket = defaultPockets.find(p => p.id === pocketId)
         if (!pocket) continue
         
-        await fetch('/api/categories', {
+        const categoryResponse = await fetch('/api/categories', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -497,6 +505,11 @@ export default function SetupPage() {
             isPersonal: false,
           }),
         })
+        
+        if (!categoryResponse.ok) {
+          const errorData = await categoryResponse.json().catch(() => ({}))
+          console.error(`Error al crear categoría ${pocket.name}:`, errorData.error || 'Error desconocido')
+        }
       }
       
       // Mostrar pantalla de éxito
