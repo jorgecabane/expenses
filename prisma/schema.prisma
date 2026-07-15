@@ -29,6 +29,7 @@ model User {
   sentInvitations       GroupInvitation[]    @relation("Inviter")
   expenseShares         ExpenseShare[]
   completedPaymentTasks MonthlyPaymentTask[] @relation("CompletedBy")
+  apiTokens             ApiToken[]
 
   @@map("users")
 }
@@ -54,6 +55,7 @@ model FamilyGroup {
   invitations         GroupInvitation[]
   paymentTemplates    PaymentTemplate[]
   monthlyPaymentTasks MonthlyPaymentTask[]
+  apiTokens           ApiToken[]
 
   @@map("family_groups")
 }
@@ -149,6 +151,8 @@ model Expense {
   createdBy       String   @map("created_by")
   isRecurring     Boolean  @default(false) @map("is_recurring")
   recurringConfig Json?    @map("recurring_config")
+  source          String? // ej. "santander_checking" - solo para gastos creados por integraciones externas
+  externalId      String?  @map("external_id") // id de deduplicación dentro de `source`
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -159,6 +163,7 @@ model Expense {
   expenseShares ExpenseShare[]
   paymentTask   MonthlyPaymentTask?
 
+  @@unique([source, externalId])
   @@map("expenses")
 }
 
@@ -261,4 +266,22 @@ model MonthlyPaymentTask {
 
   @@unique([templateId, groupId])
   @@map("monthly_payment_tasks")
+}
+
+// API Token (acceso programático de solo un usuario a un espacio específico)
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  groupId    String    @map("group_id")
+  name       String
+  tokenHash  String    @unique @map("token_hash")
+  lastUsedAt DateTime? @map("last_used_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@map("api_tokens")
 }

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import NextLink from 'next/link'
 import { toast } from 'sonner'
-import { 
-  Settings, 
-  Users, 
+import {
+  Settings,
+  Users,
   Wallet,
   Trash2,
   Save,
@@ -22,7 +23,8 @@ import {
   Link,
   Send,
   UserPlus,
-  LogOut
+  LogOut,
+  KeyRound
 } from 'lucide-react'
 
 interface Group {
@@ -1043,6 +1045,21 @@ export default function SettingsPage() {
           )}
         </div>
       </section>
+
+      {/* API Tokens */}
+      <NextLink
+        href="/dashboard/settings/api-tokens"
+        className="flex items-center gap-3 bg-slate-800/50 rounded-2xl border border-slate-700 p-6 hover:border-slate-600 transition-colors"
+      >
+        <div className="p-2 bg-amber-500/20 rounded-lg">
+          <KeyRound className="w-5 h-5 text-amber-400" />
+        </div>
+        <div className="flex-1">
+          <h2 className="text-lg font-semibold text-white">API Tokens</h2>
+          <p className="text-sm text-slate-400">Acceso programático para integraciones (ej. sync bancario)</p>
+        </div>
+        <ChevronRight className="w-5 h-5 text-slate-400" />
+      </NextLink>
 
       {/* Zona de peligro */}
       <section className="bg-red-500/5 rounded-2xl border border-red-500/20 overflow-hidden">

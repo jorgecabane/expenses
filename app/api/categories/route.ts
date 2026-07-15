@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentUser, canUserAccessGroup } from '@/lib/auth'
+import { getAuthContext, getCurrentUser, canUserAccessGroup } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 // GET - Obtener categorías de un grupo
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
+    const auth = await getAuthContext(request)
+    if (!auth) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
-    const groupId = searchParams.get('groupId')
+    // Un token queda atado a un solo espacio: si no viene groupId, se usa el del token;
+    // si viene uno distinto, se rechaza (nunca puede consultar otro espacio).
+    const groupId = searchParams.get('groupId') || (auth.type === 'token' ? auth.groupId : null)
 
     if (!groupId) {
       return NextResponse.json(
@@ -20,7 +22,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const hasAccess = await canUserAccessGroup(user.id, groupId)
+    if (auth.type === 'token' && groupId !== auth.groupId) {
+      return NextResponse.json(
+        { error: 'Este token no tiene acceso a ese grupo' },
+        { status: 403 }
+      )
+    }
+
+    const hasAccess = await canUserAccessGroup(auth.userId, groupId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'No tienes acceso a este grupo' },

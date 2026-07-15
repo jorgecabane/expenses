@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentUser, canUserAccessGroup, canUserEditCategory } from '@/lib/auth'
+import { getAuthContext, canUserAccessGroup, canUserEditCategory } from '@/lib/auth'
 import { createExpense, getExpenses } from '@/lib/expenses'
 import { prisma } from '@/lib/prisma'
 import { parseLocalDate } from '@/lib/utils'
@@ -7,14 +7,17 @@ import { parseLocalDate } from '@/lib/utils'
 // GET - Obtener gastos
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
+    const auth = await getAuthContext(request)
+    if (!auth) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
-    const groupId = searchParams.get('groupId')
+    // Un token queda atado a un solo espacio: si no viene groupId, se usa el del token;
+    // si viene uno distinto, se rechaza (nunca puede consultar otro espacio).
+    const groupId = searchParams.get('groupId') || (auth.type === 'token' ? auth.groupId : null)
     const categoryId = searchParams.get('categoryId')
+    const source = searchParams.get('source')
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const limit = searchParams.get('limit')
@@ -26,7 +29,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const hasAccess = await canUserAccessGroup(user.id, groupId)
+    if (auth.type === 'token' && groupId !== auth.groupId) {
+      return NextResponse.json(
+        { error: 'Este token no tiene acceso a ese grupo' },
+        { status: 403 }
+      )
+    }
+
+    const hasAccess = await canUserAccessGroup(auth.userId, groupId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'No tienes acceso a este grupo' },
@@ -37,7 +47,7 @@ export async function GET(request: NextRequest) {
     // Si no se especifican fechas, usar el mes actual
     let finalStartDate = startDate ? new Date(startDate) : undefined
     let finalEndDate = endDate ? new Date(endDate) : undefined
-    
+
     if (!finalStartDate && !finalEndDate) {
       const now = new Date()
       finalStartDate = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -46,6 +56,7 @@ export async function GET(request: NextRequest) {
 
     const expenses = await getExpenses(groupId, {
       categoryId: categoryId || undefined,
+      source: source || undefined,
       startDate: finalStartDate,
       endDate: finalEndDate,
       limit: limit ? parseInt(limit) : undefined,
@@ -64,14 +75,13 @@ export async function GET(request: NextRequest) {
 // POST - Crear nuevo gasto
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
+    const auth = await getAuthContext(request)
+    if (!auth) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
     const body = await request.json()
     const {
-      groupId,
       categoryId,
       amount,
       description,
@@ -79,36 +89,45 @@ export async function POST(request: NextRequest) {
       isRecurring = false,
       recurringConfig,
       expenseShares, // Para división de gastos compartidos
+      source,
+      externalId,
     } = body
 
-    if (!groupId || !categoryId || !amount) {
+    // Un token nunca puede escribir fuera de su espacio: el groupId siempre sale del
+    // token, sin importar lo que mande el cliente. Solo la sesión por cookie puede
+    // elegir groupId libremente (validado contra el activeGroupId más abajo).
+    const groupId = auth.type === 'token' ? auth.groupId : body.groupId
+
+    if (!groupId || !amount) {
       return NextResponse.json(
-        { error: 'groupId, categoryId y amount son requeridos' },
+        { error: 'groupId y amount son requeridos' },
         { status: 400 }
       )
     }
 
-    // Verificar que el grupo activo del usuario coincida con el grupo proporcionado
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { activeGroupId: true },
-    })
+    if (auth.type === 'session') {
+      // Verificar que el grupo activo del usuario coincida con el grupo proporcionado
+      const dbUser = await prisma.user.findUnique({
+        where: { id: auth.userId },
+        select: { activeGroupId: true },
+      })
 
-    if (!dbUser?.activeGroupId) {
-      return NextResponse.json(
-        { error: 'No tienes un grupo activo. Por favor, selecciona un grupo primero.' },
-        { status: 400 }
-      )
+      if (!dbUser?.activeGroupId) {
+        return NextResponse.json(
+          { error: 'No tienes un grupo activo. Por favor, selecciona un grupo primero.' },
+          { status: 400 }
+        )
+      }
+
+      if (dbUser.activeGroupId !== groupId) {
+        return NextResponse.json(
+          { error: 'El grupo proporcionado no coincide con tu grupo activo. Por favor, cambia al grupo correcto.' },
+          { status: 400 }
+        )
+      }
     }
 
-    if (dbUser.activeGroupId !== groupId) {
-      return NextResponse.json(
-        { error: 'El grupo proporcionado no coincide con tu grupo activo. Por favor, cambia al grupo correcto.' },
-        { status: 400 }
-      )
-    }
-
-    const hasAccess = await canUserAccessGroup(user.id, groupId)
+    const hasAccess = await canUserAccessGroup(auth.userId, groupId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'No tienes acceso a este grupo' },
@@ -116,8 +135,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Deduplicación: si ya existe un gasto con este (source, externalId), es un
+    // reintento/ventana superpuesta de una integración externa - no crear otro.
+    if (source && externalId) {
+      const existing = await prisma.expense.findUnique({
+        where: { source_externalId: { source, externalId } },
+        include: { category: true },
+      })
+      if (existing) {
+        return NextResponse.json({ expense: existing, deduped: true })
+      }
+    }
+
+    // Si no viene categoryId (ej. baja confianza de una categorización automática),
+    // cae al bolsillo "Sin categorizar" del grupo.
+    let resolvedCategoryId = categoryId
+    if (!resolvedCategoryId) {
+      const fallback = await prisma.category.findFirst({
+        where: { groupId, name: 'Sin categorizar' },
+      })
+      if (!fallback) {
+        return NextResponse.json(
+          {
+            error:
+              'No se envió categoryId y no existe un bolsillo "Sin categorizar" en este grupo. Creá uno desde la app.',
+          },
+          { status: 400 }
+        )
+      }
+      resolvedCategoryId = fallback.id
+    }
+
     // Verificar permisos para editar la categoría
-    const canEdit = await canUserEditCategory(user.id, categoryId)
+    const canEdit = await canUserEditCategory(auth.userId, resolvedCategoryId)
     if (!canEdit) {
       return NextResponse.json(
         { error: 'No tienes permisos para agregar gastos a esta categoría' },
@@ -127,16 +177,17 @@ export async function POST(request: NextRequest) {
 
     // Crear el gasto
     const parsedDate = date ? parseLocalDate(date) : new Date()
-    
+
     const expense = await createExpense(
       groupId,
-      categoryId,
+      resolvedCategoryId,
       parseFloat(amount),
       description || null,
       parsedDate,
-      user.id,
+      auth.userId,
       isRecurring,
-      recurringConfig
+      recurringConfig,
+      source && externalId ? { source, externalId } : undefined
     )
 
     // Si hay división de gastos, crear los ExpenseShare

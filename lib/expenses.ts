@@ -14,7 +14,8 @@ export async function createExpense(
   date: Date | string,
   createdBy: string,
   isRecurring: boolean = false,
-  recurringConfig?: unknown
+  recurringConfig?: unknown,
+  externalRef?: { source: string; externalId: string }
 ) {
   // Asegurar que date sea un Date en UTC a medianoche
   // Siempre parsear usando parseLocalDate para evitar problemas de zona horaria
@@ -93,6 +94,7 @@ export async function createExpense(
       createdBy,
       isRecurring,
       ...(recurringConfig ? { recurringConfig: recurringConfig as unknown as Prisma.InputJsonValue } : {}),
+      ...(externalRef ? { source: externalRef.source, externalId: externalRef.externalId } : {}),
     },
   })
 
@@ -112,6 +114,7 @@ export async function getExpenses(
   options?: {
     categoryId?: string
     userId?: string
+    source?: string
     startDate?: Date
     endDate?: Date
     limit?: number
@@ -126,6 +129,7 @@ export async function getExpenses(
     categoryId?: string
     createdBy?: string
     isRecurring?: boolean
+    source?: string
   } = {
     groupId,
   }
@@ -136,6 +140,10 @@ export async function getExpenses(
 
   if (options?.userId) {
     where.createdBy = options.userId
+  }
+
+  if (options?.source) {
+    where.source = options.source
   }
 
   if (options?.startDate || options?.endDate) {

@@ -2,6 +2,14 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // Las rutas /api/* hacen su propia autenticación (cookie de sesión O API token) y
+  // devuelven 401 en JSON cuando corresponde. Si las dejamos pasar por el redirect a
+  // /login de acá abajo, un cliente programático con Bearer token nunca llegaría al
+  // route handler.
+  if (request.nextUrl.pathname.startsWith('/api')) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })

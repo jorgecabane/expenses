@@ -1,3 +1,5 @@
+import { createHash } from 'crypto'
+import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 
@@ -42,6 +44,59 @@ export async function getCurrentUser() {
     console.error('getCurrentUser: Unexpected error:', error)
     return null
   }
+}
+
+/**
+ * Hashea un API token para almacenamiento/lookup (nunca se guarda en texto plano)
+ */
+export function hashApiToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex')
+}
+
+/**
+ * Resuelve identidad desde un header `Authorization: Bearer <token>`.
+ * Devuelve null si no hay header, el token es inválido, o fue revocado.
+ */
+export async function getApiTokenAuth(
+  request: NextRequest
+): Promise<{ userId: string; groupId: string; tokenId: string } | null> {
+  const authHeader = request.headers.get('authorization')
+  if (!authHeader?.startsWith('Bearer ')) return null
+
+  const token = authHeader.slice('Bearer '.length).trim()
+  if (!token) return null
+
+  const tokenHash = hashApiToken(token)
+  const apiToken = await prisma.apiToken.findUnique({ where: { tokenHash } })
+
+  if (!apiToken || apiToken.revokedAt) return null
+
+  await prisma.apiToken.update({
+    where: { id: apiToken.id },
+    data: { lastUsedAt: new Date() },
+  })
+
+  return { userId: apiToken.userId, groupId: apiToken.groupId, tokenId: apiToken.id }
+}
+
+/**
+ * Resuelve identidad para un endpoint que acepta tanto sesión (cookie, uso desde la UI)
+ * como API token (uso programático). El token, cuando está presente, siempre gana y
+ * fija el groupId — un cliente programático nunca puede operar fuera del espacio
+ * al que su token quedó atado.
+ */
+export async function getAuthContext(
+  request: NextRequest
+): Promise<{ type: 'token'; userId: string; groupId: string } | { type: 'session'; userId: string } | null> {
+  const tokenAuth = await getApiTokenAuth(request)
+  if (tokenAuth) {
+    return { type: 'token', userId: tokenAuth.userId, groupId: tokenAuth.groupId }
+  }
+
+  const user = await getCurrentUser()
+  if (!user) return null
+
+  return { type: 'session', userId: user.id }
 }
 
 /**
