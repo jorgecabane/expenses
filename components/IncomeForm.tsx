@@ -13,6 +13,14 @@ interface IncomeFormProps {
   groupId: string
   currency?: string
   onSuccess?: () => void
+  incomeId?: string // Para edición (ej. editar un ingreso recurrente)
+  initialValues?: {
+    amount: number
+    description: string
+    date: string
+    type: 'personal' | 'group'
+    recurringConfig?: RecurringConfig | null
+  }
 }
 
 export default function IncomeForm({
@@ -21,6 +29,8 @@ export default function IncomeForm({
   groupId,
   currency = 'CLP',
   onSuccess,
+  incomeId,
+  initialValues,
 }: IncomeFormProps) {
   const router = useRouter()
   const [amount, setAmount] = useState('')
@@ -33,6 +43,19 @@ export default function IncomeForm({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  const isEditing = !!incomeId
+
+  // Cargar valores iniciales al abrir para edición
+  useEffect(() => {
+    if (open && initialValues) {
+      setAmount(initialValues.amount.toString())
+      setDescription(initialValues.description)
+      setDate(initialValues.date.split('T')[0])
+      setType(initialValues.type)
+      setRecurringConfig(initialValues.recurringConfig || null)
+    }
+  }, [open, initialValues])
+
   // Reset cuando se cierra
   useEffect(() => {
     if (!open) {
@@ -44,6 +67,7 @@ export default function IncomeForm({
       setShowRecurrenceModal(false)
       setError(null)
       setSuccess(false)
+      setLoading(false)
     }
   }, [open])
 
@@ -66,16 +90,18 @@ export default function IncomeForm({
     setError(null)
 
     try {
-      const res = await fetch('/api/incomes', {
-        method: 'POST',
+      const url = incomeId ? `/api/incomes/${incomeId}` : '/api/incomes'
+      const method = incomeId ? 'PATCH' : 'POST'
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          groupId,
+          ...(incomeId ? {} : { groupId, type }),
           amount: parseFloat(amount),
           description: description || null,
           // Enviar solo la fecha en formato YYYY-MM-DD para evitar problemas UTC
           date: date,
-          type,
           isRecurring: !!recurringConfig,
           recurringConfig: recurringConfig || null,
         }),
@@ -84,23 +110,24 @@ export default function IncomeForm({
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || 'Error al registrar ingreso')
-        toast.error('Error al registrar ingreso', { description: data.error })
+        setError(data.error || `Error al ${isEditing ? 'actualizar' : 'registrar'} ingreso`)
+        toast.error(`Error al ${isEditing ? 'actualizar' : 'registrar'} ingreso`, { description: data.error })
         setLoading(false)
         return
       }
 
       setSuccess(true)
-      toast.success('Ingreso registrado', { 
-        description: `$${parseFloat(amount).toLocaleString('es-CL')} agregado`
+      setLoading(false) // Resetear loading antes de cerrar (si no, el botón queda "Guardando")
+      toast.success(isEditing ? 'Ingreso actualizado' : 'Ingreso registrado', {
+        description: `$${parseFloat(amount).toLocaleString('es-CL')}${isEditing ? '' : ' agregado'}`
       })
       setTimeout(() => {
         onOpenChange(false)
         onSuccess?.()
       }, 800)
     } catch {
-      setError('Error al registrar ingreso')
-      toast.error('Error al registrar ingreso')
+      setError(`Error al ${isEditing ? 'actualizar' : 'registrar'} ingreso`)
+      toast.error(`Error al ${isEditing ? 'actualizar' : 'registrar'} ingreso`)
       setLoading(false)
     }
   }
@@ -130,7 +157,7 @@ export default function IncomeForm({
             <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mb-4">
               <Check className="w-8 h-8 text-emerald-400" />
             </div>
-            <p className="text-white font-semibold text-lg">¡Ingreso registrado!</p>
+            <p className="text-white font-semibold text-lg">{isEditing ? '¡Ingreso actualizado!' : '¡Ingreso registrado!'}</p>
           </div>
         )}
 
@@ -141,8 +168,8 @@ export default function IncomeForm({
               <TrendingUp className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Nuevo ingreso</h2>
-              <p className="text-sm text-slate-500">Registra tu ingreso mensual</p>
+              <h2 className="text-lg font-semibold text-white">{isEditing ? 'Editar ingreso' : 'Nuevo ingreso'}</h2>
+              <p className="text-sm text-slate-500">{isEditing ? 'Los cambios aplican a las próximas ocurrencias' : 'Registra tu ingreso mensual'}</p>
             </div>
           </div>
           <button
@@ -177,39 +204,43 @@ export default function IncomeForm({
             )}
           </div>
 
-          {/* Tipo de ingreso */}
+          {/* Tipo de ingreso (no editable: se define al crear) */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-400">Tipo de ingreso</label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setType('group')}
+                onClick={() => !isEditing && setType('group')}
+                disabled={isEditing}
                 className={`flex items-center justify-center gap-2 p-4 rounded-xl border transition-all ${
                   type === 'group'
                     ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
                     : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
-                }`}
+                } ${isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
                 <Users className="w-5 h-5" />
                 <span className="font-medium">Grupal</span>
               </button>
               <button
                 type="button"
-                onClick={() => setType('personal')}
+                onClick={() => !isEditing && setType('personal')}
+                disabled={isEditing}
                 className={`flex items-center justify-center gap-2 p-4 rounded-xl border transition-all ${
                   type === 'personal'
                     ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
                     : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
-                }`}
+                } ${isEditing ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
                 <User className="w-5 h-5" />
                 <span className="font-medium">Personal</span>
               </button>
             </div>
             <p className="text-xs text-slate-500">
-              {type === 'group' 
-                ? 'Ingreso compartido para todo el grupo'
-                : 'Tu ingreso personal dentro del grupo'}
+              {isEditing
+                ? 'El tipo no se puede cambiar al editar'
+                : type === 'group'
+                  ? 'Ingreso compartido para todo el grupo'
+                  : 'Tu ingreso personal dentro del grupo'}
             </p>
           </div>
 
@@ -317,7 +348,7 @@ export default function IncomeForm({
                   Guardando...
                 </>
               ) : (
-                'Guardar ingreso'
+                isEditing ? 'Guardar cambios' : 'Guardar ingreso'
               )}
             </button>
           </div>

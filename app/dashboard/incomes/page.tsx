@@ -93,6 +93,7 @@ export default function IncomesPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [incomeFormOpen, setIncomeFormOpen] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState<RecurringTemplate | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // Obtener grupo activo
@@ -331,14 +332,23 @@ export default function IncomesPage() {
       {groupId && (
         <IncomeForm
           open={incomeFormOpen}
-          onOpenChange={setIncomeFormOpen}
+          onOpenChange={(open) => {
+            setIncomeFormOpen(open)
+            if (!open) setEditingTemplate(null)
+          }}
           groupId={groupId}
           currency={currency}
+          incomeId={editingTemplate?.id}
+          initialValues={editingTemplate ? {
+            amount: editingTemplate.amount,
+            description: editingTemplate.description || '',
+            date: editingTemplate.date,
+            type: editingTemplate.isPersonal ? 'personal' : 'group',
+            recurringConfig: editingTemplate.recurringConfig,
+          } : undefined}
           onSuccess={() => {
             fetchIncomes()
-            toast.success('Ingreso agregado', {
-              description: 'El ingreso se ha agregado correctamente',
-            })
+            setEditingTemplate(null)
           }}
         />
       )}
@@ -545,6 +555,13 @@ export default function IncomesPage() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { setEditingTemplate(template); setIncomeFormOpen(true) }}
+                        className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                        title="Editar"
+                      >
+                        <Edit3 className="w-4 h-4 text-slate-400" />
+                      </button>
                       <button
                         onClick={() => handleTogglePause(template)}
                         disabled={pausingTemplate === template.id}
