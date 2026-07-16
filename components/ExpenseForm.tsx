@@ -59,6 +59,7 @@ export default function ExpenseForm({
   const [success, setSuccess] = useState(false)
 
   const selectedCategory = categories.find((c) => c.id === categoryId)
+  const isEditing = !!expenseId
 
   // Separar categorías
   const sharedCategories = categories.filter((c) => !c.isPersonal)
@@ -183,7 +184,7 @@ export default function ExpenseForm({
             <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mb-4">
               <Check className="w-8 h-8 text-emerald-400" />
             </div>
-            <p className="text-white font-semibold text-lg">¡Gasto registrado!</p>
+            <p className="text-white font-semibold text-lg">{isEditing ? '¡Gasto actualizado!' : '¡Gasto registrado!'}</p>
           </div>
         )}
 
@@ -194,8 +195,8 @@ export default function ExpenseForm({
               <Minus className="w-5 h-5 text-red-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Nuevo gasto</h2>
-              <p className="text-sm text-slate-500">Registra tu gasto</p>
+              <h2 className="text-lg font-semibold text-white">{isEditing ? 'Editar gasto' : 'Nuevo gasto'}</h2>
+              <p className="text-sm text-slate-500">{isEditing ? 'Modifica los datos o el bolsillo' : 'Registra tu gasto'}</p>
             </div>
           </div>
           <button
@@ -383,7 +384,7 @@ export default function ExpenseForm({
                   Guardando...
                 </>
               ) : (
-                'Guardar gasto'
+                isEditing ? 'Guardar cambios' : 'Guardar gasto'
               )}
             </button>
           </div>

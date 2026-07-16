@@ -125,6 +125,7 @@ export default function ExpensesList({
   const [deleting, setDeleting] = useState(false)
   const [pausingTemplate, setPausingTemplate] = useState<string | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<RecurringTemplate | null>(null)
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [showEditConfirm, setShowEditConfirm] = useState(false)
   const [editAffectFuture, setEditAffectFuture] = useState<boolean | null>(null)
 
@@ -348,24 +349,43 @@ export default function ExpensesList({
           setExpenseFormOpen(open)
           if (!open) {
             setEditingTemplate(null)
+            setEditingExpense(null)
             setEditAffectFuture(null)
           }
         }}
         groupId={groupId}
         categories={categories}
         currency={groupCurrency}
-        expenseId={editingTemplate && editAffectFuture === true ? editingTemplate.id : undefined}
-        initialValues={editingTemplate ? {
-          amount: editingTemplate.amount,
-          description: editingTemplate.description,
-          categoryId: editingTemplate.categoryId,
-          date: editingTemplate.date,
-          recurringConfig: editingTemplate.recurringConfig,
-        } : undefined}
+        expenseId={
+          editingExpense
+            ? editingExpense.id
+            : editingTemplate && editAffectFuture === true
+              ? editingTemplate.id
+              : undefined
+        }
+        initialValues={
+          editingExpense
+            ? {
+                amount: editingExpense.amount,
+                description: editingExpense.description,
+                categoryId: editingExpense.categoryId,
+                date: editingExpense.date,
+              }
+            : editingTemplate
+              ? {
+                  amount: editingTemplate.amount,
+                  description: editingTemplate.description,
+                  categoryId: editingTemplate.categoryId,
+                  date: editingTemplate.date,
+                  recurringConfig: editingTemplate.recurringConfig,
+                }
+              : undefined
+        }
         affectFuture={editAffectFuture}
         onSuccess={() => {
           router.refresh()
           setEditingTemplate(null)
+          setEditingExpense(null)
           setEditAffectFuture(null)
         }}
       />
@@ -662,9 +682,11 @@ export default function ExpensesList({
                 {/* Expenses for this date */}
                 <div className="bg-slate-800/50 rounded-xl border border-slate-700 divide-y divide-slate-700">
                   {group.items.map(expense => (
-                    <div 
-                      key={expense.id} 
-                      className="p-4 hover:bg-slate-700/30 transition-colors group"
+                    <div
+                      key={expense.id}
+                      onClick={expense.isOwner ? () => { setEditingExpense(expense); setExpenseFormOpen(true) } : undefined}
+                      title={expense.isOwner ? 'Editar / recategorizar' : undefined}
+                      className={`p-4 hover:bg-slate-700/30 transition-colors group ${expense.isOwner ? 'cursor-pointer' : ''}`}
                     >
                       <div className="flex items-center gap-3">
                         {/* Icon */}
@@ -706,8 +728,8 @@ export default function ExpensesList({
                         {/* Actions (solo si es owner) */}
                         {expense.isOwner && (
                           <div className="flex items-center gap-1">
-                            <button 
-                              onClick={() => setDeleteConfirm(expense.id)}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteConfirm(expense.id) }}
                               className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                             >
                               <Trash2 className="w-4 h-4" />
