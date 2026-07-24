@@ -123,7 +123,7 @@ export async function PATCH(
 
     const { expenseId } = await params
     const body = await request.json()
-    const { amount, description, categoryId, date, recurringConfig, isRecurring } = body
+    const { amount, description, categoryId, date, recurringConfig, isRecurring, accountType } = body
 
     // Buscar el gasto
     const expense = await prisma.expense.findUnique({
@@ -151,6 +151,7 @@ export async function PATCH(
         ...(categoryId !== undefined && { categoryId }),
         ...(date !== undefined && { date: parseLocalDate(date) }),
         ...(isRecurring !== undefined && { isRecurring }),
+        ...(accountType !== undefined && { accountType }),
         ...(recurringConfig !== undefined && { recurringConfig: recurringConfig as unknown as Prisma.InputJsonValue }),
       },
       include: {

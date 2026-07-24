@@ -120,7 +120,8 @@ export default async function ExpensesPage() {
     description: string | null
     date: Date
     categoryId: string
-    category: { name: string; icon: string | null; color: string | null; isPersonal: boolean } | null
+    accountType: string | null
+    category: { name: string; icon: string | null; color: string | null; isPersonal: boolean; excludeFromSpending: boolean } | null
     creator: { name: string | null; email: string } | null
     createdBy: string
   }) => ({
@@ -136,6 +137,8 @@ export default async function ExpensesPage() {
     creatorId: exp.createdBy,
     creatorName: exp.creator?.name || exp.creator?.email?.split('@')[0] || 'Usuario',
     isOwner: exp.createdBy === user.id,
+    accountType: exp.accountType ?? 'checking',
+    excludeFromSpending: exp.category?.excludeFromSpending ?? false,
   }))
 
   const categoriesData = activeGroup.categories.map((cat: { id: string; name: string; icon: string | null; color: string | null; isPersonal: boolean; ownerId: string | null }) => ({
@@ -174,8 +177,10 @@ export default async function ExpensesPage() {
     recurringConfig: template.recurringConfig as RecurringConfig,
   }))
 
-  // Calcular totales
-  const totalExpenses = expensesData.reduce((acc: number, exp: { amount: number }) => acc + exp.amount, 0)
+  // Calcular totales (Consumo excluye pagos de tarjeta para no doble-contar)
+  const totalExpenses = expensesData
+    .filter((exp: { excludeFromSpending: boolean }) => !exp.excludeFromSpending)
+    .reduce((acc: number, exp: { amount: number }) => acc + exp.amount, 0)
   
   // Por mes actual usando UTC para evitar problemas de zona horaria
   const now = new Date()
@@ -210,7 +215,13 @@ export default async function ExpensesPage() {
     
     return isInRange
   })
-  const thisMonthTotal = thisMonthExpenses.reduce((acc: number, exp: { amount: number }) => acc + exp.amount, 0)
+  // Consumo del mes (excluye pagos de tarjeta) y Salida de caja (checking, incl. pago tarjeta)
+  const thisMonthTotal = thisMonthExpenses
+    .filter((exp: { excludeFromSpending: boolean }) => !exp.excludeFromSpending)
+    .reduce((acc: number, exp: { amount: number }) => acc + exp.amount, 0)
+  const thisMonthCaja = thisMonthExpenses
+    .filter((exp: { accountType: string }) => exp.accountType !== 'credit')
+    .reduce((acc: number, exp: { amount: number }) => acc + exp.amount, 0)
 
   return (
     <ExpensesList
@@ -221,6 +232,7 @@ export default async function ExpensesPage() {
       groupCurrency={activeGroup.currency}
       totalExpenses={totalExpenses}
       thisMonthTotal={thisMonthTotal}
+      thisMonthCaja={thisMonthCaja}
       currentUserId={user.id}
     />
   )

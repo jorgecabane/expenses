@@ -17,10 +17,13 @@ import {
   TrendingDown,
   Repeat,
   Pause,
-  Play
+  Play,
+  Landmark,
+  Info
 } from 'lucide-react'
 import { toast } from 'sonner'
 import ExpenseForm from './ExpenseForm'
+import AccountTag from './AccountTag'
 import { formatRecurrenceConfig, type RecurringConfig } from '@/lib/recurrence'
 
 interface Expense {
@@ -36,6 +39,8 @@ interface Expense {
   creatorId: string
   creatorName: string
   isOwner: boolean
+  accountType?: string // 'credit' | 'checking'
+  excludeFromSpending?: boolean
 }
 
 interface RecurringTemplate extends Expense {
@@ -59,6 +64,7 @@ interface ExpensesListProps {
   groupCurrency: string
   totalExpenses: number
   thisMonthTotal: number
+  thisMonthCaja?: number
   currentUserId: string
 }
 
@@ -113,6 +119,7 @@ export default function ExpensesList({
   groupCurrency,
   totalExpenses,
   thisMonthTotal,
+  thisMonthCaja,
   currentUserId,
 }: ExpensesListProps) {
   const router = useRouter()
@@ -370,6 +377,7 @@ export default function ExpensesList({
                 description: editingExpense.description,
                 categoryId: editingExpense.categoryId,
                 date: editingExpense.date,
+                accountType: editingExpense.accountType,
               }
             : editingTemplate
               ? {
@@ -449,15 +457,24 @@ export default function ExpensesList({
           </button>
         </div>
 
-        {/* Stats cards */}
+        {/* Stats cards: Consumo (principal) + Salida de caja (secundario) */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-            <p className="text-sm text-slate-400 mb-1">Este mes</p>
+            <p
+              className="text-sm text-slate-400 mb-1 flex items-center gap-1 cursor-help"
+              title="Consumo del mes: en qué gastaste, incluyendo compras con tarjeta que pagas después. Salida de caja: plata que salió de tu cuenta este mes (incluye el pago de la tarjeta, no las compras pendientes)."
+            >
+              Consumo del mes <Info className="w-3 h-3 text-slate-500" />
+            </p>
             <p className="text-xl font-bold text-white">{formatCurrency(thisMonthTotal, groupCurrency)}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">en qué gastaste (incluye tarjeta)</p>
           </div>
           <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-            <p className="text-sm text-slate-400 mb-1">Últimos 3 meses</p>
-            <p className="text-xl font-bold text-white">{formatCurrency(totalExpenses, groupCurrency)}</p>
+            <p className="text-sm text-slate-400 mb-1 flex items-center gap-1.5">
+              <Landmark className="w-3.5 h-3.5 shrink-0" /> Salida de caja
+            </p>
+            <p className="text-xl font-bold text-slate-300">{formatCurrency(thisMonthCaja ?? 0, groupCurrency)}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">salió de tu cuenta este mes</p>
           </div>
         </div>
 
@@ -701,7 +718,7 @@ export default function ExpensesList({
                               {expense.description || expense.categoryName}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span className="text-sm text-slate-500">{expense.categoryName}</span>
                             <span className="text-slate-600">•</span>
                             {expense.isPersonal ? (
@@ -715,6 +732,7 @@ export default function ExpensesList({
                                 {expense.creatorName}
                               </span>
                             )}
+                            <AccountTag accountType={expense.accountType ?? 'checking'} />
                           </div>
                         </div>
 

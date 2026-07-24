@@ -14,10 +14,13 @@ import {
   Wallet,
   PiggyBank,
   RefreshCw,
-  Info
+  Info,
+  CreditCard,
+  Landmark
 } from 'lucide-react'
 import ExpenseForm from './ExpenseForm'
 import IncomeForm from './IncomeForm'
+import AccountTag from './AccountTag'
 import {
   Dialog,
   DialogContent,
@@ -49,6 +52,7 @@ interface Transaction {
   date: string
   creatorName: string
   isOwner: boolean
+  accountType: string // 'credit' | 'checking'
 }
 
 interface DashboardContentProps {
@@ -57,6 +61,8 @@ interface DashboardContentProps {
   pockets: Pocket[]
   recentTransactions: Transaction[]
   totalSpent: number
+  salidaCaja: number
+  pendienteTarjeta: number
   totalLimit: number
   totalIncome: number
   remainingBudget: number
@@ -129,6 +135,8 @@ export default function DashboardContent({
   pockets: initialPockets,
   recentTransactions: initialTransactions,
   totalSpent: initialTotalSpent,
+  salidaCaja: initialSalidaCaja,
+  pendienteTarjeta: initialPendienteTarjeta,
   totalLimit,
   totalIncome: initialTotalIncome,
   remainingBudget: initialRemainingBudget,
@@ -141,6 +149,8 @@ export default function DashboardContent({
   const [pockets, setPockets] = useState(initialPockets)
   const [recentTransactions, setRecentTransactions] = useState(initialTransactions)
   const [totalSpent, setTotalSpent] = useState(initialTotalSpent)
+  const [salidaCaja, setSalidaCaja] = useState(initialSalidaCaja)
+  const [pendienteTarjeta, setPendienteTarjeta] = useState(initialPendienteTarjeta)
   const [totalIncome, setTotalIncome] = useState(initialTotalIncome)
   const [isRefreshing, setIsRefreshing] = useState(false)
   
@@ -156,8 +166,10 @@ export default function DashboardContent({
     setPockets(initialPockets)
     setRecentTransactions(initialTransactions)
     setTotalSpent(initialTotalSpent)
+    setSalidaCaja(initialSalidaCaja)
+    setPendienteTarjeta(initialPendienteTarjeta)
     setTotalIncome(initialTotalIncome)
-  }, [groupId, initialPockets, initialTransactions, initialTotalSpent, initialTotalIncome])
+  }, [groupId, initialPockets, initialTransactions, initialTotalSpent, initialSalidaCaja, initialPendienteTarjeta, initialTotalIncome])
   
   // Calcular valores derivados
   const remainingBudget = totalLimit - totalSpent
@@ -185,15 +197,19 @@ export default function DashboardContent({
       if (expensesRes.ok) {
         const { expenses } = await expensesRes.json()
         
-        // Actualizar transacciones recientes
-        const newTransactions = expenses.slice(0, 5).map((exp: {
+        type ApiExpense = {
           id: string
           description: string | null
           amount: number | string
           date: string
-          category?: { name: string; icon?: string | null } | null
+          categoryId: string
+          accountType?: string | null
+          category?: { name: string; icon?: string | null; excludeFromSpending?: boolean } | null
           creator?: { name: string | null; email: string } | null
-        }) => ({
+        }
+
+        // Actualizar transacciones recientes
+        const newTransactions = (expenses as ApiExpense[]).slice(0, 5).map((exp) => ({
           id: exp.id,
           description: exp.description || 'Sin descripción',
           amount: Number(exp.amount),
@@ -202,19 +218,30 @@ export default function DashboardContent({
           date: formatRelativeDate(new Date(exp.date)),
           creatorName: exp.creator?.name || exp.creator?.email?.split('@')[0] || 'Usuario',
           isOwner: true, // Simplificado por ahora
+          accountType: exp.accountType ?? 'checking',
         }))
         setRecentTransactions(newTransactions)
-        
-        // Calcular nuevo total gastado
-        const newTotalSpent = expenses.reduce((acc: number, exp: { amount: number | string }) => acc + Number(exp.amount), 0)
-        setTotalSpent(newTotalSpent)
-        
-        // Actualizar gastos por categoría en pockets
+
+        // Consumo (excluye pagos de tarjeta), Caja (checking) y Pendiente (compras de tarjeta)
+        const consumoExpenses = (expenses as ApiExpense[]).filter((e) => !e.category?.excludeFromSpending)
+        setTotalSpent(consumoExpenses.reduce((acc, e) => acc + Number(e.amount), 0))
+        setSalidaCaja(
+          (expenses as ApiExpense[])
+            .filter((e) => (e.accountType ?? 'checking') !== 'credit')
+            .reduce((acc, e) => acc + Number(e.amount), 0)
+        )
+        setPendienteTarjeta(
+          (expenses as ApiExpense[])
+            .filter((e) => e.accountType === 'credit' && !e.category?.excludeFromSpending)
+            .reduce((acc, e) => acc + Number(e.amount), 0)
+        )
+
+        // Actualizar gastos por categoría (consumo) en pockets
         const expensesByCategory: Record<string, number> = {}
-        expenses.forEach((exp: { categoryId: string; amount: number | string }) => {
+        consumoExpenses.forEach((exp) => {
           expensesByCategory[exp.categoryId] = (expensesByCategory[exp.categoryId] || 0) + Number(exp.amount)
         })
-        
+
         setPockets(prev => prev.map(pocket => ({
           ...pocket,
           spent: expensesByCategory[pocket.id] || 0,
@@ -442,10 +469,16 @@ export default function DashboardContent({
             </p>
           </button>
 
-          {/* Total gastado */}
+          {/* Consumo del mes (principal) + Salida de caja (secundario) */}
           <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-slate-400 text-sm font-medium">Gastado</span>
+              <span
+                className="text-slate-400 text-sm font-medium flex items-center gap-1 cursor-help"
+                title="Consumo del mes: en qué gastaste, incluyendo compras con tarjeta que pagas después. Salida de caja: plata que efectivamente salió de tu cuenta este mes (incluye el pago de la tarjeta, no las compras que quedan pendientes)."
+              >
+                Consumo del mes
+                <Info className="w-3.5 h-3.5 text-slate-500" />
+              </span>
               <div className="p-2 bg-red-500/20 rounded-lg">
                 <TrendingDown className="w-4 h-4 text-red-400" />
               </div>
@@ -453,9 +486,20 @@ export default function DashboardContent({
             <p className="text-xl sm:text-2xl font-bold text-white">
               <ResponsiveCurrency amount={totalSpent} currency={groupCurrency} />
             </p>
-            <p className="text-xs text-slate-500 mt-1">
-              {incomeUsedPercentage.toFixed(0)}% del ingreso
-            </p>
+            <div className="mt-2 space-y-1">
+              <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                <Landmark className="w-3 h-3 shrink-0" />
+                <span>Salida de caja:</span>
+                <ResponsiveCurrency amount={salidaCaja} currency={groupCurrency} className="text-slate-400 font-medium" />
+              </p>
+              {pendienteTarjeta > 0 && (
+                <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                  <CreditCard className="w-3 h-3 shrink-0" />
+                  <span>Pendiente en tarjeta:</span>
+                  <ResponsiveCurrency amount={pendienteTarjeta} currency={groupCurrency} className="text-slate-400 font-medium" />
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Balance */}
@@ -633,7 +677,10 @@ export default function DashboardContent({
                         {tx.emoji}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-white font-medium truncate">{tx.description}</p>
+                        <p className="text-white font-medium truncate flex items-center gap-1.5">
+                          <span className="truncate">{tx.description}</span>
+                          <AccountTag accountType={tx.accountType} iconOnly className="shrink-0" />
+                        </p>
                         <p className="text-sm text-slate-500">
                           {tx.category} • {tx.date} • <span className={tx.isOwner ? 'text-emerald-500' : 'text-slate-400'}>{tx.isOwner ? 'Mío' : tx.creatorName}</span>
                         </p>

@@ -15,7 +15,8 @@ export async function createExpense(
   createdBy: string,
   isRecurring: boolean = false,
   recurringConfig?: unknown,
-  externalRef?: { source: string; externalId: string }
+  accountType?: string, // 'credit' | 'checking' — proveniencia del gasto
+  externalRef?: { bank: string; externalId: string } // dedup para integraciones externas
 ) {
   // Asegurar que date sea un Date en UTC a medianoche
   // Siempre parsear usando parseLocalDate para evitar problemas de zona horaria
@@ -46,6 +47,10 @@ export async function createExpense(
     },
   })
 
+  // Los gastos de bolsillos "excludeFromSpending" (ej. pago de tarjeta) NO inflan el
+  // presupuesto: son caja pero no consumo.
+  const countsForBudget = !categoryCheck.excludeFromSpending
+
   // Si es recurrente, crear el template Y la transacción inicial
   if (isRecurring && recurringConfig) {
     // Crear el template recurrente
@@ -59,11 +64,12 @@ export async function createExpense(
         createdBy,
         isRecurring: true,
         recurringConfig: recurringConfig,
+        ...(accountType ? { accountType } : {}),
       },
     })
 
     // Crear la transacción inicial para la fecha seleccionada
-    const initialExpense = await prisma.expense.create({
+    await prisma.expense.create({
       data: {
         groupId,
         categoryId,
@@ -72,11 +78,12 @@ export async function createExpense(
         date: expenseDate,
         createdBy,
         isRecurring: false, // Esta es la transacción generada, no el template
+        ...(accountType ? { accountType } : {}),
       },
     })
 
     // Actualizar el presupuesto si existe (solo con la transacción inicial)
-    if (budget) {
+    if (budget && countsForBudget) {
       await updateBudgetAfterExpense(budget.id, amount)
     }
 
@@ -94,12 +101,13 @@ export async function createExpense(
       createdBy,
       isRecurring,
       ...(recurringConfig ? { recurringConfig: recurringConfig as unknown as Prisma.InputJsonValue } : {}),
-      ...(externalRef ? { source: externalRef.source, externalId: externalRef.externalId } : {}),
+      ...(accountType ? { accountType } : {}),
+      ...(externalRef ? { bank: externalRef.bank, externalId: externalRef.externalId } : {}),
     },
   })
 
   // Actualizar el presupuesto si existe
-  if (budget) {
+  if (budget && countsForBudget) {
     await updateBudgetAfterExpense(budget.id, amount)
   }
 
@@ -114,7 +122,7 @@ export async function getExpenses(
   options?: {
     categoryId?: string
     userId?: string
-    source?: string
+    accountType?: string
     startDate?: Date
     endDate?: Date
     limit?: number
@@ -129,7 +137,7 @@ export async function getExpenses(
     categoryId?: string
     createdBy?: string
     isRecurring?: boolean
-    source?: string
+    accountType?: string
   } = {
     groupId,
   }
@@ -142,8 +150,8 @@ export async function getExpenses(
     where.createdBy = options.userId
   }
 
-  if (options?.source) {
-    where.source = options.source
+  if (options?.accountType) {
+    where.accountType = options.accountType
   }
 
   if (options?.startDate || options?.endDate) {

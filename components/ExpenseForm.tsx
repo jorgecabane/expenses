@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { X, Receipt, User, Users, Loader2, Check, Minus, Calendar, Repeat } from 'lucide-react'
+import { X, Receipt, User, Users, Loader2, Check, Minus, Calendar, Repeat, CreditCard, Landmark } from 'lucide-react'
 import RecurrenceModal from './RecurrenceModal'
 import { type RecurringConfig, formatRecurrenceConfig } from '@/lib/recurrence'
 
@@ -31,6 +31,7 @@ interface ExpenseFormProps {
     categoryId: string
     date: string
     recurringConfig?: RecurringConfig | null
+    accountType?: string
   }
   affectFuture?: boolean | null // Para templates recurrentes: true = afecta todas las futuras, false = solo esta ocurrencia
 }
@@ -52,6 +53,7 @@ export default function ExpenseForm({
   const [categoryId, setCategoryId] = useState(defaultCategoryId || '')
   const [description, setDescription] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [accountType, setAccountType] = useState<'credit' | 'checking'>('checking')
   const [recurringConfig, setRecurringConfig] = useState<RecurringConfig | null>(null)
   const [showRecurrenceModal, setShowRecurrenceModal] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -79,6 +81,7 @@ export default function ExpenseForm({
       setCategoryId(initialValues.categoryId)
       setDate(initialValues.date.split('T')[0])
       setRecurringConfig(initialValues.recurringConfig || null)
+      setAccountType(initialValues.accountType === 'credit' ? 'credit' : 'checking')
     }
   }, [open, initialValues])
 
@@ -89,6 +92,7 @@ export default function ExpenseForm({
       setDescription('')
       setCategoryId(defaultCategoryId || '')
       setDate(new Date().toISOString().split('T')[0])
+      setAccountType('checking')
       setRecurringConfig(null)
       setShowRecurrenceModal(false)
       setError(null)
@@ -129,6 +133,7 @@ export default function ExpenseForm({
           description: description || null,
           // Enviar solo la fecha en formato YYYY-MM-DD para evitar problemas UTC
           date: date,
+          accountType,
           isRecurring: !!recurringConfig,
           recurringConfig: recurringConfig || null,
         }),
@@ -303,6 +308,35 @@ export default function ExpenseForm({
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
               />
+            </div>
+          </div>
+
+          {/* Medio de pago (tarjeta / cuenta corriente) */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-400">¿Cómo lo pagaste?</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setAccountType('checking')}
+                className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl border text-sm font-medium transition-all ${
+                  accountType === 'checking'
+                    ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
+                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                <Landmark className="w-4 h-4" /> Cuenta corriente
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccountType('credit')}
+                className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl border text-sm font-medium transition-all ${
+                  accountType === 'credit'
+                    ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
+                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                <CreditCard className="w-4 h-4" /> Tarjeta
+              </button>
             </div>
           </div>
 

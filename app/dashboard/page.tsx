@@ -164,16 +164,32 @@ export default async function DashboardPage() {
     return acc + amount
   }, 0)
 
-  // Calcular gastos por categoría usando TODOS los gastos del mes (no solo los 10 recientes)
+  const num = (a: number | string | { toNumber: () => number }) =>
+    typeof a === 'object' && 'toNumber' in a ? a.toNumber() : Number(a)
+
+  // CONSUMO por bolsillo: excluye categorías excludeFromSpending (ej. pago de tarjeta),
+  // para no doble-contar (las compras de tarjeta ya están en sus bolsillos).
   const expensesByCategory: Record<string, number> = {}
-  allExpenses.forEach((exp: { categoryId: string; amount: number | string | { toString: () => string; toNumber: () => number } }) => {
-    const catId = exp.categoryId
-    const amount = typeof exp.amount === 'object' && 'toNumber' in exp.amount ? exp.amount.toNumber() : Number(exp.amount)
-    expensesByCategory[catId] = (expensesByCategory[catId] || 0) + amount
+  allExpenses.forEach((exp) => {
+    if (exp.category?.excludeFromSpending) return
+    expensesByCategory[exp.categoryId] = (expensesByCategory[exp.categoryId] || 0) + num(exp.amount)
   })
 
-  // Preparar datos de bolsillos
-  const pockets = activeGroup.categories.map((cat: {
+  // SALIDA DE CAJA: plata que salió de la cuenta corriente (checking incl. pago de
+  // tarjeta); excluye compras de tarjeta (se pagan el próximo mes).
+  const salidaCaja = allExpenses
+    .filter((exp) => (exp.accountType ?? 'checking') !== 'credit')
+    .reduce((acc, exp) => acc + num(exp.amount), 0)
+
+  // PENDIENTE EN TARJETA: compras de tarjeta del mes (consumo) que pagas el próximo mes.
+  const pendienteTarjeta = allExpenses
+    .filter((exp) => exp.accountType === 'credit' && !exp.category?.excludeFromSpending)
+    .reduce((acc, exp) => acc + num(exp.amount), 0)
+
+  // Preparar datos de bolsillos (ocultar los excludeFromSpending: no son consumo)
+  const pockets = activeGroup.categories
+    .filter((cat: { excludeFromSpending?: boolean }) => !cat.excludeFromSpending)
+    .map((cat: {
     id: string
     name: string
     icon: string | null
@@ -217,6 +233,7 @@ export default async function DashboardPage() {
     creator?: { name: string | null; email: string } | null
     createdBy: string
     date: Date
+    accountType?: string | null
   }) => ({
     id: exp.id,
     description: exp.description || 'Sin descripción',
@@ -226,6 +243,7 @@ export default async function DashboardPage() {
     date: formatRelativeDate(exp.date),
     creatorName: exp.creator?.name || exp.creator?.email?.split('@')[0] || 'Usuario',
     isOwner: exp.createdBy === user.id,
+    accountType: exp.accountType ?? 'checking',
   }))
 
   // Preparar categorías para el formulario
@@ -245,6 +263,8 @@ export default async function DashboardPage() {
       pockets={pockets}
       recentTransactions={recentTransactions}
       totalSpent={totalSpent}
+      salidaCaja={salidaCaja}
+      pendienteTarjeta={pendienteTarjeta}
       totalLimit={totalLimit}
       totalIncome={totalIncome}
       remainingBudget={remainingBudget}

@@ -106,6 +106,9 @@ model Category {
   monthlyLimit Decimal? @map("monthly_limit") @db.Decimal(10, 2)
   isPersonal   Boolean  @default(false) @map("is_personal")
   ownerId      String?  @map("owner_id")
+  // true = gasto de caja pero no consumo (ej. bolsillo "Pago tarjeta crédito");
+  // se excluye de la vista "Consumo del mes" para no doble-contar la tarjeta.
+  excludeFromSpending Boolean @default(false) @map("exclude_from_spending")
   createdAt    DateTime @default(now()) @map("created_at")
 
   // Relations
@@ -151,8 +154,10 @@ model Expense {
   createdBy       String   @map("created_by")
   isRecurring     Boolean  @default(false) @map("is_recurring")
   recurringConfig Json?    @map("recurring_config")
-  source          String? // ej. "santander_checking" - solo para gastos creados por integraciones externas
-  externalId      String?  @map("external_id") // id de deduplicación dentro de `source`
+  bank            String? // ej. "santander" - banco de origen (integraciones externas)
+  accountType     String?  @map("account_type") // 'credit' (tarjeta) | 'checking' (cuenta corriente); null = checking
+  source          String? // DEPRECADO: reemplazado por bank+accountType. No usar en código nuevo.
+  externalId      String?  @map("external_id") // id de deduplicación dentro de (bank, accountType)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -163,7 +168,7 @@ model Expense {
   expenseShares ExpenseShare[]
   paymentTask   MonthlyPaymentTask?
 
-  @@unique([source, externalId])
+  @@unique([bank, accountType, externalId])
   @@map("expenses")
 }
 

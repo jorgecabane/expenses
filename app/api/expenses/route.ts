@@ -17,7 +17,8 @@ export async function GET(request: NextRequest) {
     // si viene uno distinto, se rechaza (nunca puede consultar otro espacio).
     const groupId = searchParams.get('groupId') || (auth.type === 'token' ? auth.groupId : null)
     const categoryId = searchParams.get('categoryId')
-    const source = searchParams.get('source')
+    const accountType = searchParams.get('accountType')
+    const source = searchParams.get('source') // DEPRECADO: back-compat
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const limit = searchParams.get('limit')
@@ -54,9 +55,13 @@ export async function GET(request: NextRequest) {
       finalEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
     }
 
+    const resolvedAccountType =
+      accountType ||
+      (source === 'santander_credit_card' ? 'credit' : source === 'santander_checking' ? 'checking' : undefined)
+
     const expenses = await getExpenses(groupId, {
       categoryId: categoryId || undefined,
-      source: source || undefined,
+      accountType: resolvedAccountType || undefined,
       startDate: finalStartDate,
       endDate: finalEndDate,
       limit: limit ? parseInt(limit) : undefined,
@@ -89,9 +94,20 @@ export async function POST(request: NextRequest) {
       isRecurring = false,
       recurringConfig,
       expenseShares, // Para división de gastos compartidos
-      source,
+      bank,
+      accountType,
+      source, // DEPRECADO: back-compat, se deriva a bank+accountType
       externalId,
     } = body
+
+    // Proveniencia: preferir bank/accountType del body; si viene el `source` viejo,
+    // derivarlo. Manual (sin nada) → checking por defecto.
+    let resolvedBank: string | null = bank ?? null
+    let resolvedAccountType: string = accountType ?? 'checking'
+    if (!bank && !accountType && source) {
+      if (source === 'santander_credit_card') { resolvedBank = 'santander'; resolvedAccountType = 'credit' }
+      else if (source === 'santander_checking') { resolvedBank = 'santander'; resolvedAccountType = 'checking' }
+    }
 
     // Un token nunca puede escribir fuera de su espacio: el groupId siempre sale del
     // token, sin importar lo que mande el cliente. Solo la sesión por cookie puede
@@ -135,11 +151,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Deduplicación: si ya existe un gasto con este (source, externalId), es un
-    // reintento/ventana superpuesta de una integración externa - no crear otro.
-    if (source && externalId) {
-      const existing = await prisma.expense.findUnique({
-        where: { source_externalId: { source, externalId } },
+    // Deduplicación: si ya existe un gasto con este (bank, accountType, externalId), es
+    // un reintento/ventana superpuesta de una integración externa - no crear otro.
+    if (externalId && resolvedBank) {
+      const existing = await prisma.expense.findFirst({
+        where: { bank: resolvedBank, accountType: resolvedAccountType, externalId },
         include: { category: true },
       })
       if (existing) {
@@ -187,7 +203,8 @@ export async function POST(request: NextRequest) {
       auth.userId,
       isRecurring,
       recurringConfig,
-      source && externalId ? { source, externalId } : undefined
+      resolvedAccountType,
+      externalId && resolvedBank ? { bank: resolvedBank, externalId } : undefined
     )
 
     // Si hay división de gastos, crear los ExpenseShare

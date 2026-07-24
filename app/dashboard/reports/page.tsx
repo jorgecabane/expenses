@@ -108,8 +108,14 @@ export default async function ReportsPage() {
     }
   }
 
+  // CONSUMO: excluir bolsillos excludeFromSpending (ej. pago de tarjeta) para no
+  // doble-contar la tarjeta (las compras ya están contadas en sus bolsillos).
+  const consumoExpenses = expenses.filter(
+    (exp: { category?: { excludeFromSpending?: boolean } | null }) => !exp.category?.excludeFromSpending
+  )
+
   // Sumar gastos por mes usando UTC
-  expenses.forEach((exp: { date: Date; amount: number | string | { toString: () => string; toNumber: () => number } }) => {
+  consumoExpenses.forEach((exp: { date: Date; amount: number | string | { toString: () => string; toNumber: () => number } }) => {
     const d = new Date(exp.date)
     const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`
     if (monthlyData[key]) {
@@ -137,7 +143,7 @@ export default async function ReportsPage() {
   const startOfMonth = new Date(Date.UTC(currentYear, currentMonth, 1))
   const endOfMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0, 23, 59, 59, 999))
   
-  const currentMonthExpenses = expenses.filter((exp: { date: Date; categoryId: string; amount: number | string | { toString: () => string; toNumber: () => number } }) => {
+  const currentMonthExpenses = consumoExpenses.filter((exp: { date: Date; categoryId: string; amount: number | string | { toString: () => string; toNumber: () => number } }) => {
     const expDate = new Date(exp.date)
     // Comparar usando UTC para evitar problemas de zona horaria
     const expYear = expDate.getUTCFullYear()
@@ -219,8 +225,8 @@ export default async function ReportsPage() {
     return acc + amount
   }, 0)
 
-  // Calcular totales de todos los tiempos
-  const totalExpenses = expenses.reduce((acc: number, exp: { amount: number | string | { toString: () => string; toNumber: () => number } }) => {
+  // Calcular totales de todos los tiempos (consumo, sin doble-contar tarjeta)
+  const totalExpenses = consumoExpenses.reduce((acc: number, exp: { amount: number | string | { toString: () => string; toNumber: () => number } }) => {
     const amount = typeof exp.amount === 'object' && 'toNumber' in exp.amount ? exp.amount.toNumber() : Number(exp.amount)
     return acc + amount
   }, 0)
