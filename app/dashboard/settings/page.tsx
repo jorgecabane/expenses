@@ -24,7 +24,8 @@ import {
   Send,
   UserPlus,
   LogOut,
-  KeyRound
+  KeyRound,
+  Brain
 } from 'lucide-react'
 
 interface Group {
@@ -1045,6 +1046,21 @@ export default function SettingsPage() {
           )}
         </div>
       </section>
+
+      {/* Aprendizaje */}
+      <NextLink
+        href="/dashboard/settings/aprendizaje"
+        className="flex items-center gap-3 bg-slate-800/50 rounded-2xl border border-slate-700 p-6 hover:border-slate-600 transition-colors"
+      >
+        <div className="p-2 bg-violet-500/20 rounded-lg">
+          <Brain className="w-5 h-5 text-violet-400" />
+        </div>
+        <div className="flex-1">
+          <h2 className="text-lg font-semibold text-white">Aprendizaje</h2>
+          <p className="text-sm text-slate-400">Qué comercios se categorizan solos y cuáles necesitan tu criterio</p>
+        </div>
+        <ChevronRight className="w-5 h-5 text-slate-400" />
+      </NextLink>
 
       {/* API Tokens */}
       <NextLink

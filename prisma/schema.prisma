@@ -56,6 +56,7 @@ model FamilyGroup {
   paymentTemplates    PaymentTemplate[]
   monthlyPaymentTasks MonthlyPaymentTask[]
   apiTokens           ApiToken[]
+  categoryRules       CategoryRule[]
 
   @@map("family_groups")
 }
@@ -117,6 +118,7 @@ model Category {
   expenses         Expense[]
   budgets          MonthlyBudget[]
   paymentTemplates PaymentTemplate[]
+  rules            CategoryRule[]
 
   @@map("categories")
 }
@@ -289,4 +291,23 @@ model ApiToken {
   group FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@map("api_tokens")
+}
+
+// Regla explícita comercio -> bolsillo, editable desde la app. Vive en la base (y no
+// en un archivo local del scraper) para que valga en cualquier dispositivo y para
+// cualquier persona que use Bolsillos. Gana por sobre lo que el sistema aprendió solo.
+model CategoryRule {
+  id         String   @id @default(cuid())
+  groupId    String   @map("group_id")
+  keyword    String // se busca dentro de la descripción, sin acentos ni mayúsculas
+  categoryId String   @map("category_id")
+  createdBy  String?  @map("created_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  group    FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  category Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, keyword])
+  @@index([groupId])
+  @@map("category_rules")
 }
