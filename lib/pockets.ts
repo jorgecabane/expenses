@@ -100,26 +100,18 @@ export async function upsertMonthlyBudget(
 /**
  * Actualiza el monto gastado de un bolsillo después de agregar un gasto
  */
+// Incrementos atómicos: el read-modify-write anterior perdía actualizaciones cuando
+// dos gastos de la misma categoría entraban a la vez (bank-sync ahora postea en
+// paralelo). Además es menos código y una sola ida a la base.
 export async function updateBudgetAfterExpense(
   budgetId: string,
   expenseAmount: number
 ) {
-  const budget = await prisma.monthlyBudget.findUnique({
-    where: { id: budgetId },
-  })
-
-  if (!budget) throw new Error('Budget not found')
-
-  const currentSpent = Number(budget.spentAmount)
-  const currentAllocated = Number(budget.allocatedAmount)
-  const newSpent = currentSpent + expenseAmount
-  const newRemaining = currentAllocated - newSpent
-
   return prisma.monthlyBudget.update({
     where: { id: budgetId },
     data: {
-      spentAmount: newSpent,
-      remainingAmount: newRemaining,
+      spentAmount: { increment: expenseAmount },
+      remainingAmount: { decrement: expenseAmount },
     },
   })
 }
