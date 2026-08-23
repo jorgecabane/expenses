@@ -44,15 +44,44 @@ y arreglar el bolsillo del sistema. Las credenciales **no se mueven**: siguen en
 
 ## Decisiones de arquitectura
 
-### 1. La librería reemplaza al scraper propio, pero solo si da paridad
+### 1. La librería se adopta desde un fork propio
 
-`open-banking-chile` llegó a los mismos endpoints de Santander que nosotros por
-ingeniería inversa independiente, lo que valida ambas implementaciones. Aun así,
-son 534 líneas que nunca corrieron contra esta cuenta.
+Se verificó la paridad contra una cuenta real: de 89 movimientos comparables, 62
+coinciden exacto y 15 son la misma transacción con otra fecha (`transactionDate` vs
+`accountingDate`). Además trae 46 movimientos facturados que el scraper propio nunca
+obtuvo, con cuotas reales.
 
-**El primer paso del plan es comparar su salida contra los 142 movimientos ya
-importados.** Si no hay paridad, la fase se detiene y se revisa. No se borra el
-scraper propio hasta que la comparación pase.
+No se adopta `main` directamente: dos PRs abiertos (#86 cuentas no principales, #77
+tarjetas por producto) son necesarios y llevan meses sin merge. El fork
+`jorgecabane/open-banking-chile@bolsillos` los combina con tres aportes propios
+(#88 fechas ISO, #89 `postedDate`, y el catálogo de productos), más dos arreglos que
+solo aparecen al combinar ambos PRs: `currency` declarado dos veces con tipos
+distintos, y movimientos de tarjeta contados en `accounts[]` y `creditCards[]` a la vez.
+
+Costo asumido: si upstream mergea esos PRs con cambios, hay que rebasear el fork.
+
+### 1b. Descubrimiento de productos: qué se puede y qué no
+
+La respuesta del login de Santander trae el catálogo completo en
+`CrucedeProducto.MATRICES.MATRIZCAPTACIONES.e1`, sin costo de un request extra.
+`AGRUPACIONCOMERCIAL` clasifica el producto (`CCC`/`CCM` cuenta, `TCR` tarjeta,
+`LCR` línea) y `NUMEROPAN` da los últimos 4 de la tarjeta.
+
+**Limitación real, verificada:** el catálogo permite *enumerar* los productos, pero el
+scraper todavía no puede *atribuir* los movimientos de cuenta corriente a cada uno —
+los trae juntos. Para tarjetas sí hay atribución (`card` por movimiento).
+
+Consecuencia para la Fase 1:
+
+| Producto | Se puede listar | Se puede separar sus movimientos |
+|---|---|---|
+| Tarjeta de crédito | sí | **sí** |
+| Cuentas de depósito | sí | **no** — vienen juntas |
+| Línea de crédito | sí | no aplica (no se sincroniza) |
+
+Entonces la pantalla de selección ofrece las tarjetas por separado y las cuentas de
+depósito como un solo bloque. Es suficiente para el caso real: de las 4 cuentas de
+depósito del titular, 3 están sin uso.
 
 ### 2. El rango de fechas se filtra del lado nuestro
 
@@ -68,6 +97,30 @@ unánimes) arranque con señal, en una sola pasada.
 La librería advierte que ejecutar seguido puede hacer que el banco bloquee la cuenta.
 El sync diario entra cómodo; iterar en debugging no. El agente debe **rechazar** una
 corrida si la anterior fue hace menos de una hora, salvo `--force` explícito.
+
+### 3b. Capacidad de descubrimiento declarada por banco
+
+Casi la mitad de los bancos de la librería no expone productos: `bchile`, `bci`,
+`itau` y `falabella` sí; `bice` y `cencosud` parcialmente; `bestado`, `edwards`,
+`scotiabank` y `bancosecurity` no. `santander` queda entre los que sí gracias al
+catálogo del login.
+
+El onboarding no puede asumir que siempre hay una lista que mostrar, así que cada
+banco declara su capacidad y la pantalla se adapta:
+
+```ts
+type BankCapability = {
+  id: string            // "santander"
+  discoversProducts: boolean
+  attributesAccountMovements: boolean  // hoy false incluso en santander
+}
+```
+
+- `discoversProducts: true` → la pantalla con toggles por producto
+- `false` → un solo ítem, "Todos los movimientos de BancoEstado", encendido o apagado
+
+Preferido sobre bloquear los bancos sin descubrimiento, y le da un camino claro a la
+contribución: cada banco que alguien mejore pasa de la segunda forma a la primera.
 
 ### 4. El bolsillo del sistema se identifica por slug
 
@@ -203,8 +256,9 @@ Los `externalId` de movimientos **no se tocan**: el fingerprint no cambia en est
 
 ## Criterios de aceptación
 
-1. **Paridad del scraper.** La librería devuelve los mismos movimientos que el scraper
-   propio para la misma ventana, comparados por fingerprint. Bloqueante.
+1. **Paridad del scraper.** ✅ Verificado antes de escribir código: 62 de 89 movimientos
+   coinciden exacto y 15 son la misma transacción con otra fecha. El fork suma tarjeta
+   como producto, cuotas y `postedDate`.
 2. **Usuario nuevo sincroniza.** Un grupo recién creado tiene el bolsillo del sistema y
    acepta un POST sin `categoryId` sin devolver error.
 3. **Renombrar no rompe.** Cambiar el nombre del bolsillo del sistema a "Por revisar"
@@ -227,6 +281,22 @@ Los `externalId` de movimientos **no se tocan**: el fingerprint no cambia en est
 | El banco bloquea la cuenta por exceso de corridas | Límite de 1/hora aplicado en el agente, no solo documentado |
 | Segundo factor rompe el sync desatendido | Documentado como limitación real; el cron queda apagado por defecto |
 | El backfill de `accountId` deja gastos huérfanos | Criterio de aceptación explícito verifica cero huérfanos |
+
+## Pendiente de investigación: `movementNumber`
+
+El endpoint de cuenta corriente expone `movementNumber`, un identificador de 9 dígitos
+único y secuencial por cuenta. En una captura real, 28 únicos en 28 movimientos, y
+distingue los 3 que comparten descripción y monto.
+
+Si es estable entre corridas, el `externalId` de cuenta corriente podría ser
+`bank|cuenta|movementNumber` en vez del hash de texto: inmune a que mute la descripción
+**y** a que cambie la fecha. Los 18 duplicados que se arreglaron en agosto no habrían
+existido.
+
+**No verificado:** con un solo scrape no se puede afirmar que el mismo movimiento
+conserve su número. Requiere dos corridas separadas antes de confiarle el dedup.
+La API de tarjeta **no** tiene equivalente, así que ahí el fingerprint de texto sigue
+siendo necesario en cualquier caso.
 
 ## Fases siguientes (documentadas, no construidas)
 
