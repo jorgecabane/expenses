@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
-import { getCurrentUser, canUserAccessGroup } from '@/lib/auth'
+import { getAuthContext, getCurrentUser, canUserAccessGroup } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseLocalDate } from '@/lib/utils'
 
@@ -115,51 +115,71 @@ export async function GET(request: NextRequest) {
 // POST - Crear ingreso o presupuesto del grupo
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
+    // Acepta sesión (la app) o token de API (bank-sync), igual que /api/expenses.
+    const auth = await getAuthContext(request)
+    if (!auth) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
     const body = await request.json()
-    const { groupId, amount, description, date, type, isRecurring = false, recurringConfig } = body
+    const {
+      amount, description, date, isRecurring = false, recurringConfig,
+      bank, accountType, externalId,
+    } = body
+    const type = body.type ?? 'group'
+    // Un token está atado a su espacio; la sesión usa el que venga en el body.
+    const groupId = body.groupId || (auth.type === 'token' ? auth.groupId : null)
 
-    // type: 'personal' | 'group'
-    // Si es 'group', userId = null (presupuesto del grupo)
-    // Si es 'personal', userId = user.id (ingreso personal)
-
-    if (!groupId || !amount || !type) {
+    if (!groupId || !amount) {
       return NextResponse.json(
-        { error: 'groupId, amount y type son requeridos' },
+        { error: 'groupId y amount son requeridos' },
         { status: 400 }
       )
     }
 
-    // Verificar que el grupo activo del usuario coincida con el grupo proporcionado
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { activeGroupId: true },
-    })
-
-    if (!dbUser?.activeGroupId) {
+    if (auth.type === 'token' && groupId !== auth.groupId) {
       return NextResponse.json(
-        { error: 'No tienes un grupo activo. Por favor, selecciona un grupo primero.' },
-        { status: 400 }
+        { error: 'Este token no tiene acceso a ese grupo' },
+        { status: 403 }
       )
     }
 
-    if (dbUser.activeGroupId !== groupId) {
-      return NextResponse.json(
-        { error: 'El grupo proporcionado no coincide con tu grupo activo. Por favor, cambia al grupo correcto.' },
-        { status: 400 }
-      )
+    // Solo la sesión queda atada al grupo activo: un token ya está acotado al suyo.
+    if (auth.type === 'session') {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: auth.userId },
+        select: { activeGroupId: true },
+      })
+      if (!dbUser?.activeGroupId) {
+        return NextResponse.json(
+          { error: 'No tienes un grupo activo. Por favor, selecciona un grupo primero.' },
+          { status: 400 }
+        )
+      }
+      if (dbUser.activeGroupId !== groupId) {
+        return NextResponse.json(
+          { error: 'El grupo proporcionado no coincide con tu grupo activo. Por favor, cambia al grupo correcto.' },
+          { status: 400 }
+        )
+      }
     }
 
-    const hasAccess = await canUserAccessGroup(user.id, groupId)
+    const hasAccess = await canUserAccessGroup(auth.userId, groupId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'No tienes acceso a este grupo' },
         { status: 403 }
       )
+    }
+
+    // Dedup para integraciones: el mismo abono del banco no se importa dos veces.
+    if (externalId && bank) {
+      const existing = await prisma.income.findFirst({
+        where: { bank, accountType: accountType ?? null, externalId },
+      })
+      if (existing) {
+        return NextResponse.json({ income: existing, deduped: true })
+      }
     }
 
     // Si es recurrente, crear el template Y la transacción inicial
@@ -170,11 +190,11 @@ export async function POST(request: NextRequest) {
       const template = await prisma.income.create({
         data: {
           groupId,
-          userId: type === 'personal' ? user.id : null,
+          userId: type === 'personal' ? auth.userId : null,
           amount: amount,
           description: description || null,
           date: incomeDate,
-          createdBy: user.id,
+          createdBy: auth.userId,
           isRecurring: true,
           recurringConfig: recurringConfig,
         },
@@ -193,11 +213,11 @@ export async function POST(request: NextRequest) {
       await prisma.income.create({
         data: {
           groupId,
-          userId: type === 'personal' ? user.id : null,
+          userId: type === 'personal' ? auth.userId : null,
           amount: amount,
           description: description || null,
           date: incomeDate,
-          createdBy: user.id,
+          createdBy: auth.userId,
           isRecurring: false, // Esta es la transacción generada, no el template
         },
       })
@@ -209,13 +229,15 @@ export async function POST(request: NextRequest) {
     const income = await prisma.income.create({
       data: {
         groupId,
-        userId: type === 'personal' ? user.id : null,
+        userId: type === 'personal' ? auth.userId : null,
         amount: amount, // Prisma convierte automáticamente a Decimal
         description: description || null,
         date: date ? parseLocalDate(date) : new Date(),
-        createdBy: user.id,
+        createdBy: auth.userId,
         isRecurring: isRecurring || false,
         ...(recurringConfig ? { recurringConfig: recurringConfig as unknown as Prisma.InputJsonValue } : {}),
+        // Origen bancario: sin esto el dedup de la próxima corrida no encuentra nada.
+        ...(externalId && bank ? { bank, accountType: accountType ?? null, externalId } : {}),
       },
       include: {
         creator: {

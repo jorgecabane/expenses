@@ -201,12 +201,19 @@ model Income {
   createdBy       String   @map("created_by")
   isRecurring     Boolean  @default(false) @map("is_recurring")
   recurringConfig Json?    @map("recurring_config")
+  // Origen bancario, igual que en Expense. externalId usa el movementNumber que
+  // entrega Santander: es un ID real del banco, estable entre corridas (verificado
+  // sobre 11 días), así que no hace falta derivarlo del texto como en los gastos.
+  bank            String?
+  accountType     String?  @map("account_type")
+  externalId      String?  @map("external_id")
   createdAt       DateTime @default(now()) @map("created_at")
 
   // Relations
   group   FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   creator User        @relation(fields: [createdBy], references: [id], onDelete: Cascade)
 
+  @@unique([bank, accountType, externalId])
   @@map("incomes")
 }
 
