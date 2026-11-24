@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
-import { getCurrentUser } from '@/lib/auth'
+import { getAuthContext, getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseLocalDate } from '@/lib/utils'
 
@@ -116,8 +116,9 @@ export async function PATCH(
   { params }: { params: Promise<{ expenseId: string }> }
 ) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
+    // Acepta sesión (la app) o token de API (bank-sync, para recategorizar lo importado).
+    const auth = await getAuthContext(request)
+    if (!auth) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
@@ -134,12 +135,19 @@ export async function PATCH(
       return NextResponse.json({ error: 'Gasto no encontrado' }, { status: 404 })
     }
 
-    // Verificar que el usuario sea el creador
-    if (expense.createdBy !== user.id) {
+    // Verificar que el usuario sea el creador; un token además queda atado a su espacio.
+    if (expense.createdBy !== auth.userId || (auth.type === 'token' && expense.groupId !== auth.groupId)) {
       return NextResponse.json(
         { error: 'No tienes permisos para editar este gasto' },
         { status: 403 }
       )
+    }
+
+    if (categoryId) {
+      const category = await prisma.category.findFirst({ where: { id: categoryId, groupId: expense.groupId } })
+      if (!category) {
+        return NextResponse.json({ error: 'La categoría no pertenece a este espacio' }, { status: 400 })
+      }
     }
 
     // Actualizar
