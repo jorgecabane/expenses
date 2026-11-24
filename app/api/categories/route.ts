@@ -71,13 +71,16 @@ export async function GET(request: NextRequest) {
 // POST - Crear nueva categoría
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
+    // Acepta sesión (la app) o token de API (bank-sync), igual que GET.
+    const auth = await getAuthContext(request)
+    if (!auth) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
     const body = await request.json()
-    const { groupId, name, icon, color, isPersonal = false, monthlyLimit } = body
+    const { name, icon, color, isPersonal = false, monthlyLimit } = body
+    // Un token está atado a su espacio; la sesión usa el que venga en el body.
+    const groupId = body.groupId || (auth.type === 'token' ? auth.groupId : null)
 
     if (!groupId || !name) {
       return NextResponse.json(
@@ -86,27 +89,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (auth.type === 'token' && groupId !== auth.groupId) {
+      return NextResponse.json({ error: 'Este token no tiene acceso a ese grupo' }, { status: 403 })
+    }
+
     // Verificar que el grupo activo del usuario coincida con el grupo proporcionado
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { activeGroupId: true },
-    })
+    // (guarda de la UI: el token no tiene "grupo activo", ya quedó atado arriba)
+    if (auth.type === 'session') {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: auth.userId },
+        select: { activeGroupId: true },
+      })
 
-    if (!dbUser?.activeGroupId) {
-      return NextResponse.json(
-        { error: 'No tienes un grupo activo. Por favor, selecciona un grupo primero.' },
-        { status: 400 }
-      )
+      if (!dbUser?.activeGroupId) {
+        return NextResponse.json(
+          { error: 'No tienes un grupo activo. Por favor, selecciona un grupo primero.' },
+          { status: 400 }
+        )
+      }
+
+      if (dbUser.activeGroupId !== groupId) {
+        return NextResponse.json(
+          { error: 'El grupo proporcionado no coincide con tu grupo activo. Por favor, cambia al grupo correcto.' },
+          { status: 400 }
+        )
+      }
     }
 
-    if (dbUser.activeGroupId !== groupId) {
-      return NextResponse.json(
-        { error: 'El grupo proporcionado no coincide con tu grupo activo. Por favor, cambia al grupo correcto.' },
-        { status: 400 }
-      )
-    }
-
-    const hasAccess = await canUserAccessGroup(user.id, groupId)
+    const hasAccess = await canUserAccessGroup(auth.userId, groupId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'No tienes acceso a este grupo' },
@@ -121,7 +131,7 @@ export async function POST(request: NextRequest) {
         icon: icon || null,
         color: color || null,
         isPersonal,
-        ownerId: isPersonal ? user.id : null,
+        ownerId: isPersonal ? auth.userId : null,
         monthlyLimit: monthlyLimit || null,
       },
       include: {
