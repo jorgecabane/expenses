@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthContext, getCurrentUser, canUserAccessGroup } from '@/lib/auth'
+import { getAuthContext, canUserAccessGroup } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 // GET - Obtener categorías de un grupo
